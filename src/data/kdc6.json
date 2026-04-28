@@ -1,0 +1,12 @@
+[
+  { "code": "0", "name": "총류", "level": "major" },
+  { "code": "1", "name": "철학", "level": "major" },
+  { "code": "2", "name": "종교", "level": "major" },
+  { "code": "3", "name": "사회과학", "level": "major" },
+  { "code": "4", "name": "자연과학", "level": "major" },
+  { "code": "5", "name": "기술과학", "level": "major" },
+  { "code": "6", "name": "예술", "level": "major" },
+  { "code": "7", "name": "언어", "level": "major" },
+  { "code": "8", "name": "문학", "level": "major" },
+  { "code": "9", "name": "역사", "level": "major" }
+]

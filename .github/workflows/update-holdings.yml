@@ -1,0 +1,30 @@
+name: Update holdings JSON
+
+on:
+  schedule:
+    - cron: '0 19 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update-holdings:
+    runs-on: ubuntu-latest
+    env:
+      DATA4LIBRARY_KEY: ${{ secrets.DATA4LIBRARY_KEY }}
+      LIB_CODE: ${{ vars.LIB_CODE || 'sample' }}
+      LIB_NAME: ${{ vars.LIB_NAME || '달성군립도서관' }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node --experimental-strip-types scripts/fetchHoldings.ts
+      - name: Commit updated holdings
+        uses: stefanzweifel/git-auto-commit-action@v7
+        with:
+          commit_message: 'Update holdings JSON'
+          file_pattern: public/data/holdings.latest.json public/data/holdings.meta.json

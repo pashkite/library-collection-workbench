@@ -1,0 +1,15 @@
+{
+  "baseDate": "2026-04-28",
+  "lastUpdatedAt": "2026-04-28T11:21:56.379Z",
+  "totalCount": 100,
+  "libraryCode": "sample",
+  "libraryName": "달성군립도서관",
+  "status": "sample",
+  "addedCount": 0,
+  "removedCount": 0,
+  "isbnMissingCount": 0,
+  "kdcMissingCount": 0,
+  "titleMissingCount": 0,
+  "source": "sample",
+  "message": "DATA4LIBRARY_KEY 또는 LIB_CODE가 없어 샘플 데이터를 생성했습니다."
+}
