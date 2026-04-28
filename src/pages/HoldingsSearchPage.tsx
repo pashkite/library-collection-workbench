@@ -1,4 +1,4 @@
-import { Download, Search } from 'lucide-react'
+import { Download, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageHeader } from '../components/PageHeader'
@@ -70,6 +70,13 @@ export function HoldingsSearchPage() {
     setFilters((current) => ({ ...current, [key]: value }))
   }
 
+  const hasActiveFilter = Object.values(filters).some(Boolean)
+
+  const resetFilters = () => {
+    setPage(1)
+    setFilters(initialFilters)
+  }
+
   const exportAll = async () => {
     setExporting(true)
     try {
@@ -123,6 +130,21 @@ export function HoldingsSearchPage() {
       />
 
       <section className="panel">
+        <div className="filter-header">
+          <div>
+            <strong>검색 조건</strong>
+            <span>입력하면 저장된 소장목록에서 바로 검색합니다.</span>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={resetFilters}
+            disabled={!hasActiveFilter}
+          >
+            <RotateCcw size={16} aria-hidden="true" />
+            조건 초기화
+          </button>
+        </div>
         <div className="search-grid">
           <label>
             도서명
@@ -176,6 +198,7 @@ export function HoldingsSearchPage() {
             </select>
           </label>
         </div>
+        <p className="table-hint">표가 화면보다 넓으면 좌우로 스크롤해서 모든 열을 확인할 수 있습니다.</p>
 
         <div className="table-scroll">
           <table>

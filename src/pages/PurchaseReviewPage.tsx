@@ -10,11 +10,13 @@ export function PurchaseReviewPage() {
   const [results, setResults] = useState<PurchaseReviewResult[]>([])
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string>()
+  const [fileName, setFileName] = useState<string>()
 
   const handleFile = async (file?: File) => {
     if (!file) return
     setProcessing(true)
     setError(undefined)
+    setFileName(file.name)
     try {
       const lowerName = file.name.toLowerCase()
       if (!lowerName.endsWith('.xlsx') && !lowerName.endsWith('.xls')) {
@@ -24,6 +26,7 @@ export function PurchaseReviewPage() {
       const reviewed = await reviewPurchaseCandidates(candidates)
       setResults(reviewed)
     } catch (uploadError) {
+      setResults([])
       setError(
         uploadError instanceof Error
           ? uploadError.message
@@ -63,19 +66,32 @@ export function PurchaseReviewPage() {
         <label className="file-drop">
           <Upload size={22} aria-hidden="true" />
           <strong>{processing ? '검토 중...' : '구입 후보 엑셀 업로드'}</strong>
-          <span>XLSX, XLS 파일을 지원합니다. 개인정보 포함 파일은 업로드하지 마세요.</span>
+          <span>
+            {fileName
+              ? `${fileName} 파일을 기준으로 검토합니다.`
+              : 'XLSX, XLS 파일을 지원합니다. 개인정보 포함 파일은 업로드하지 마세요.'}
+          </span>
           <input
             type="file"
             accept=".xlsx,.xls"
-            onChange={(event) => void handleFile(event.target.files?.[0])}
+            onChange={(event) => {
+              void handleFile(event.target.files?.[0])
+              event.currentTarget.value = ''
+            }}
           />
         </label>
-        <div className="recognition-note">
-          <strong>자동 인식 열</strong>
-          <span>
-            도서명/서명/제목/자료명, 저자/저자명/지은이, 출판사/발행처/출판처,
-            ISBN/국제표준도서번호, 가격/정가
-          </span>
+        <div className="recognition-note split-note">
+          <div>
+            <strong>자동 인식 열</strong>
+            <span>
+              도서명/서명/제목/자료명, 저자/저자명/지은이, 출판사/발행처/출판처,
+              ISBN/국제표준도서번호, 가격/정가
+            </span>
+          </div>
+          <a className="secondary-button" href={`${import.meta.env.BASE_URL}sample/sample_purchase_candidates.xlsx`}>
+            <FileSpreadsheet size={16} aria-hidden="true" />
+            샘플 파일
+          </a>
         </div>
       </section>
 
@@ -106,6 +122,7 @@ export function PurchaseReviewPage() {
       </section>
 
       <section className="panel table-panel">
+        <p className="table-hint">중복판정은 ISBN 완전 일치 기준입니다. 최종 구입 여부는 담당자가 확인하세요.</p>
         <div className="table-scroll">
           <table>
             <thead>

@@ -2,6 +2,32 @@ import { Download, FileSpreadsheet, RefreshCw, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import { useAppData } from '../lib/AppDataContext'
+import type { DataMeta } from '../types/library'
+
+function formatStatus(status?: DataMeta['status']) {
+  switch (status) {
+    case 'ready':
+      return '사용 가능'
+    case 'updating':
+      return '갱신 중'
+    case 'failed':
+      return '갱신 실패'
+    case 'sample':
+      return '샘플 데이터'
+    default:
+      return '-'
+  }
+}
+
+function formatDateTime(value?: string) {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return new Intl.DateTimeFormat('ko-KR', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date)
+}
 
 export function HomePage() {
   const { data, refreshData } = useAppData()
@@ -32,8 +58,8 @@ export function HomePage() {
         </article>
         <article className="metric-card">
           <span>갱신 상태</span>
-          <strong>{data.meta?.status ?? '-'}</strong>
-          <p>{data.meta?.lastUpdatedAt ?? '-'}</p>
+          <strong>{formatStatus(data.meta?.status)}</strong>
+          <p>{formatDateTime(data.meta?.lastUpdatedAt)}</p>
         </article>
       </section>
 

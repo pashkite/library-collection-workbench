@@ -281,6 +281,30 @@ main {
   gap: 12px;
 }
 
+.filter-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.filter-header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.filter-header strong {
+  font-size: 15px;
+}
+
+.filter-header span,
+.table-hint {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 label,
 .stacked-label {
   display: grid;
@@ -312,6 +336,12 @@ select {
   gap: 12px;
   align-items: center;
   padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.table-hint {
+  padding: 10px 16px;
+  background: #fbfcfd;
   border-bottom: 1px solid var(--border);
 }
 
@@ -407,6 +437,17 @@ td {
   gap: 4px;
   color: var(--muted);
   font-size: 13px;
+}
+
+.split-note {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.split-note > div {
+  display: grid;
+  gap: 4px;
 }
 
 .danger-chip,
@@ -609,12 +650,28 @@ td {
   }
 
   .sidebar {
-    position: static;
+    position: sticky;
+    z-index: 10;
     height: auto;
+    padding: 12px;
   }
 
   .sidebar nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    gap: 6px;
+    padding-bottom: 4px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+  }
+
+  .brand {
+    padding: 0 2px 10px;
+  }
+
+  .sidebar a {
+    flex: 0 0 auto;
+    min-height: 38px;
+    white-space: nowrap;
   }
 
   .metric-grid,
@@ -629,6 +686,14 @@ td {
   .topbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .filter-header,
+  .table-toolbar,
+  .split-note {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 
   main {
