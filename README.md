@@ -36,7 +36,7 @@ npm run build
 
 ## 배포 방법
 
-GitHub Pages는 `npm run build` 결과물인 `dist` 폴더를 Pages 배포 대상으로 지정합니다. Hash Router를 사용하므로 별도 서버 rewrite 설정 없이 새로고침 문제가 적습니다.
+GitHub Pages는 `.github/workflows/deploy-pages.yml` 워크플로가 `main` 브랜치 push 시 자동으로 `npm run build`를 실행하고 `dist` 폴더를 배포합니다. Vite `base`는 `/library-collection-workbench/`로 설정되어 있습니다. Hash Router를 사용하므로 별도 서버 rewrite 설정 없이 새로고침 문제가 적습니다.
 
 Cloudflare Pages는 빌드 명령을 `npm run build`, 배포 디렉터리를 `dist`로 설정합니다.
 
