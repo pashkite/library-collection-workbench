@@ -2,7 +2,8 @@ name: Update holdings JSON
 
 on:
   schedule:
-    - cron: '0 19 * * 0'
+    # KST 04:10 daily
+    - cron: '10 19 * * *'
   workflow_dispatch:
 
 permissions:
@@ -15,6 +16,9 @@ jobs:
       DATA4LIBRARY_KEY: ${{ secrets.DATA4LIBRARY_KEY }}
       LIB_CODE: ${{ vars.LIB_CODE || 'sample' }}
       LIB_NAME: ${{ vars.LIB_NAME || '달성군립도서관' }}
+      DAILY_LOOKBACK_DAYS: ${{ vars.DAILY_LOOKBACK_DAYS || '7' }}
+      PAGE_SIZE: ${{ vars.PAGE_SIZE || '300' }}
+      API_CALL_LIMIT: '450'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -22,9 +26,9 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: node --experimental-strip-types scripts/fetchHoldings.ts
+      - run: npm run update:holdings:daily
       - name: Commit updated holdings
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
-          commit_message: 'Update holdings JSON'
+          commit_message: 'Update daily holdings JSON'
           file_pattern: public/data/holdings.latest.json public/data/holdings.meta.json

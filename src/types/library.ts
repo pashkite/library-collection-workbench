@@ -1,4 +1,8 @@
 export interface BookHolding {
+  id?: string
+  dedupeKey?: string
+  libCode?: string
+  libraryName?: string
   title: string
   author: string
   publisher: string
@@ -54,9 +58,24 @@ export interface DataMeta {
   status: 'ready' | 'updating' | 'failed' | 'sample'
   addedCount?: number
   removedCount?: number
+  dailyCheckAt?: string | null
+  syncMode?: 'full' | 'daily'
+  lastFullSyncAt?: string
+  lastDailySyncAt?: string | null
+  dailyLookbackDays?: number
+  duplicateSkippedCount?: number
+  apiCallCount?: number
+  expectedTotalFromApi?: number
+  collectedCountBeforeDedupe?: number
+  collectedCountAfterDedupe?: number
   isbnMissingCount?: number
   kdcMissingCount?: number
   titleMissingCount?: number
+  callNumberMissingCount?: number
+  registeredAtMissingCount?: number
+  registrationNumberAvailable?: boolean
+  lastRegistrationNumber?: string
+  dedupeStrategy?: string
   source?: 'data4library' | 'sample'
   message?: string
 }

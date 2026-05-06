@@ -32,6 +32,10 @@ function ensurePublicFields(rows: BookHolding[]): BookHolding[] {
     callNumber: row.callNumber ?? '',
     shelfName: row.shelfName ?? '',
     registeredAt: row.registeredAt ?? '',
+    registrationNumber: row.registrationNumber ?? '',
+    dedupeKey: row.dedupeKey ?? '',
+    libCode: row.libCode ?? '',
+    libraryName: row.libraryName ?? '',
   }))
 }
 
