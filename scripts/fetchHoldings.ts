@@ -1,13 +1,16 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { getEnv, loadDotEnv } from './env.ts'
 import type { BookHolding, DataMeta } from '../src/types/library.ts'
+
+loadDotEnv()
 
 const PUBLIC_DATA_DIR = path.resolve('public/data')
 const LATEST_PATH = path.join(PUBLIC_DATA_DIR, 'holdings.latest.json')
 const META_PATH = path.join(PUBLIC_DATA_DIR, 'holdings.meta.json')
 const API_URL = 'https://data4library.kr/api/itemSrch'
-const PAGE_SIZE = Number(process.env.PAGE_SIZE ?? 300)
-const MAX_PAGES = Number(process.env.MAX_PAGES ?? 200)
+const PAGE_SIZE = Number(getEnv('PAGE_SIZE') ?? 300)
+const MAX_PAGES = Number(getEnv('MAX_PAGES') ?? 500)
 
 interface Data4LibraryDoc {
   bookname?: string
@@ -16,12 +19,18 @@ interface Data4LibraryDoc {
   publication_year?: string
   isbn13?: string
   class_no?: string
-  callNumbers?: { callNumber?: Data4LibraryCallNumber | Data4LibraryCallNumber[] }
+  reg_date?: string
+  callNumbers?:
+    | { callNumber?: Data4LibraryCallNumber | Data4LibraryCallNumber[] }
+    | Array<{ callNumber?: Data4LibraryCallNumber | Data4LibraryCallNumber[] }>
 }
 
 interface Data4LibraryCallNumber {
   call_no?: string
+  book_code?: string
   shelf_loc_name?: string
+  shelf_loc_code?: string
+  separate_shelf_name?: string
   reg_date?: string
 }
 
@@ -68,8 +77,28 @@ function asArray<T>(value: T | T[] | undefined): T[] {
   return Array.isArray(value) ? value : [value]
 }
 
+function callNumberEntries(doc: Data4LibraryDoc): Data4LibraryCallNumber[] {
+  return asArray(doc.callNumbers)
+    .flatMap((entry) => asArray(entry?.callNumber))
+    .filter((value): value is Data4LibraryCallNumber => Boolean(value && typeof value === 'object'))
+}
+
+function firstCallNumber(doc: Data4LibraryDoc): Data4LibraryCallNumber | undefined {
+  return callNumberEntries(doc)[0]
+}
+
+function readCallNumber(callNumber?: Data4LibraryCallNumber) {
+  return String(callNumber?.call_no || callNumber?.book_code || '').trim()
+}
+
+function readShelfName(callNumber?: Data4LibraryCallNumber) {
+  return String(
+    callNumber?.shelf_loc_name || callNumber?.separate_shelf_name || callNumber?.shelf_loc_code || '',
+  ).trim()
+}
+
 function sanitizeDoc(doc: Data4LibraryDoc): BookHolding {
-  const callNumber = asArray(doc.callNumbers?.callNumber)[0]
+  const callNumber = firstCallNumber(doc)
   return {
     title: doc.bookname ?? '',
     author: doc.authors ?? '',
@@ -77,9 +106,9 @@ function sanitizeDoc(doc: Data4LibraryDoc): BookHolding {
     publicationYear: doc.publication_year ?? '',
     isbn: doc.isbn13 ?? '',
     kdc: doc.class_no ?? '',
-    callNumber: callNumber?.call_no ?? '',
-    shelfName: callNumber?.shelf_loc_name ?? '',
-    registeredAt: callNumber?.reg_date ?? '',
+    callNumber: readCallNumber(callNumber),
+    shelfName: readShelfName(callNumber),
+    registeredAt: callNumber?.reg_date ?? doc.reg_date ?? '',
   }
 }
 
@@ -140,8 +169,9 @@ async function writeOutputs(rows: BookHolding[], meta: DataMeta) {
 }
 
 async function main() {
-  const authKey = process.env.DATA4LIBRARY_KEY
-  const libCode = process.env.LIB_CODE ?? 'sample'
+  const authKey = getEnv('DATA4LIBRARY_KEY', 'LIBRARY_NARU_AUTH_KEY')
+  const libCode = getEnv('LIB_CODE', 'DALSEONG_LIBRARY_CODE') ?? 'sample'
+  const libraryName = getEnv('LIB_NAME', 'DALSEONG_LIBRARY_NAME', 'LIBRARY_NAME') ?? '달성군립도서관'
   const previousMeta = await readPreviousMeta()
   let rows: BookHolding[]
   let source: DataMeta['source'] = 'data4library'
@@ -152,7 +182,8 @@ async function main() {
     rows = sampleHoldings(100)
     source = 'sample'
     status = 'sample'
-    message = 'DATA4LIBRARY_KEY 또는 LIB_CODE가 없어 샘플 데이터를 생성했습니다.'
+    message =
+      '정보나루 인증키(DATA4LIBRARY_KEY/LIBRARY_NARU_AUTH_KEY) 또는 도서관 코드(LIB_CODE/DALSEONG_LIBRARY_CODE)가 없어 샘플 데이터를 생성했습니다.'
   } else {
     try {
       rows = await fetchHoldingsFromData4Library(authKey, libCode)
@@ -180,7 +211,7 @@ async function main() {
     lastUpdatedAt: new Date().toISOString(),
     totalCount: rows.length,
     libraryCode: libCode,
-    libraryName: process.env.LIB_NAME ?? '달성군립도서관',
+    libraryName,
     status,
     addedCount: previousMeta ? Math.max(0, rows.length - previousMeta.totalCount) : rows.length,
     removedCount: previousMeta ? Math.max(0, previousMeta.totalCount - rows.length) : 0,

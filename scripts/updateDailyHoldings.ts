@@ -1,6 +1,9 @@
 import { mkdir, readFile, rename, writeFile, copyFile } from 'node:fs/promises'
 import path from 'node:path'
+import { getEnv, loadDotEnv } from './env.ts'
 import type { BookHolding, DataMeta } from '../src/types/library.ts'
+
+loadDotEnv()
 
 const PUBLIC_DATA_DIR = path.resolve('public/data')
 const LATEST_PATH = path.join(PUBLIC_DATA_DIR, 'holdings.latest.json')
@@ -8,9 +11,11 @@ const META_PATH = path.join(PUBLIC_DATA_DIR, 'holdings.meta.json')
 const TMP_LATEST_PATH = path.join(PUBLIC_DATA_DIR, 'holdings.latest.tmp.json')
 const TMP_META_PATH = path.join(PUBLIC_DATA_DIR, 'holdings.meta.tmp.json')
 const API_URL = 'https://data4library.kr/api/itemSrch'
-const PAGE_SIZE = Number(process.env.PAGE_SIZE ?? 300)
-const DAILY_LOOKBACK_DAYS = Number(process.env.DAILY_LOOKBACK_DAYS ?? 7)
-const API_CALL_LIMIT = Number(process.env.API_CALL_LIMIT ?? 450)
+const PAGE_SIZE = Number(getEnv('PAGE_SIZE') ?? 300)
+const DAILY_LOOKBACK_DAYS = Number(getEnv('DAILY_LOOKBACK_DAYS') ?? 7)
+const API_CALL_LIMIT = Number(getEnv('API_CALL_LIMIT') ?? 450)
+const CONFIG_LIB_CODE = getEnv('LIB_CODE', 'DALSEONG_LIBRARY_CODE') ?? ''
+const CONFIG_LIB_NAME = getEnv('LIB_NAME', 'DALSEONG_LIBRARY_NAME', 'LIBRARY_NAME') ?? ''
 const DEDUPE_STRATEGY =
   'registrationNumber > isbn+callNumber+registeredAt+title > isbn+title+author+publisher > text fallback'
 
@@ -29,13 +34,19 @@ interface Data4LibraryDoc {
   publication_year?: string
   isbn13?: string
   class_no?: string
-  callNumbers?: { callNumber?: Data4LibraryCallNumber | Data4LibraryCallNumber[] }
+  reg_date?: string
+  callNumbers?:
+    | { callNumber?: Data4LibraryCallNumber | Data4LibraryCallNumber[] }
+    | Array<{ callNumber?: Data4LibraryCallNumber | Data4LibraryCallNumber[] }>
   [key: string]: unknown
 }
 
 interface Data4LibraryCallNumber {
   call_no?: string
+  book_code?: string
   shelf_loc_name?: string
+  shelf_loc_code?: string
+  separate_shelf_name?: string
   reg_date?: string
   [key: string]: unknown
 }
@@ -83,6 +94,26 @@ function normalizeIsbn(value: unknown): string {
 
 function readString(value: unknown): string {
   return String(value ?? '').trim()
+}
+
+function callNumberEntries(doc: Data4LibraryDoc): Data4LibraryCallNumber[] {
+  return asArray(doc.callNumbers)
+    .flatMap((entry) => asArray(entry?.callNumber))
+    .filter((value): value is Data4LibraryCallNumber => Boolean(value && typeof value === 'object'))
+}
+
+function firstCallNumber(doc: Data4LibraryDoc): Data4LibraryCallNumber | undefined {
+  return callNumberEntries(doc)[0]
+}
+
+function readCallNumber(callNumber?: Data4LibraryCallNumber) {
+  return readString(callNumber?.call_no || callNumber?.book_code)
+}
+
+function readShelfName(callNumber?: Data4LibraryCallNumber) {
+  return readString(
+    callNumber?.shelf_loc_name || callNumber?.separate_shelf_name || callNumber?.shelf_loc_code,
+  )
 }
 
 function findRegistrationNumber(doc: Data4LibraryDoc, callNumber?: Data4LibraryCallNumber): string {
@@ -147,7 +178,7 @@ function standardizeDoc(
   libCode: string,
   libraryName: string,
 ): StandardHolding {
-  const callNumber = asArray(doc.callNumbers?.callNumber)[0]
+  const callNumber = firstCallNumber(doc)
   const registrationNumber = findRegistrationNumber(doc, callNumber)
   const base = {
     libCode,
@@ -158,9 +189,9 @@ function standardizeDoc(
     publicationYear: readString(doc.publication_year),
     isbn: readString(doc.isbn13),
     kdc: readString(doc.class_no),
-    callNumber: readString(callNumber?.call_no),
-    shelfName: readString(callNumber?.shelf_loc_name),
-    registeredAt: readString(callNumber?.reg_date),
+    callNumber: readCallNumber(callNumber),
+    shelfName: readShelfName(callNumber),
+    registeredAt: readString(callNumber?.reg_date || doc.reg_date),
     registrationNumber,
   }
   const dedupeKey = makeDedupeKey(base)
@@ -174,8 +205,8 @@ function standardizeDoc(
 
 function normalizeExistingHolding(row: BookHolding, index: number, meta?: DataMeta): StandardHolding {
   const base = {
-    libCode: row.libCode || meta?.libraryCode || process.env.LIB_CODE || '',
-    libraryName: row.libraryName || meta?.libraryName || process.env.LIB_NAME || '',
+    libCode: row.libCode || meta?.libraryCode || CONFIG_LIB_CODE,
+    libraryName: row.libraryName || meta?.libraryName || CONFIG_LIB_NAME,
     title: row.title ?? '',
     author: row.author ?? '',
     publisher: row.publisher ?? '',
@@ -290,13 +321,15 @@ async function safeWrite(rows: StandardHolding[], meta: DataMeta) {
 }
 
 async function main() {
-  const authKey = process.env.DATA4LIBRARY_KEY
-  const libCode = process.env.LIB_CODE
-  const libraryName = process.env.LIB_NAME ?? '공공도서관'
+  const authKey = getEnv('DATA4LIBRARY_KEY', 'LIBRARY_NARU_AUTH_KEY')
+  const libCode = CONFIG_LIB_CODE
+  const libraryName = CONFIG_LIB_NAME || '공공도서관'
 
-  if (!authKey) throw new Error('DATA4LIBRARY_KEY가 없어 일일 수집을 실행할 수 없습니다.')
+  if (!authKey) {
+    throw new Error('정보나루 인증키(DATA4LIBRARY_KEY/LIBRARY_NARU_AUTH_KEY)가 없어 일일 수집을 실행할 수 없습니다.')
+  }
   if (!libCode || libCode === 'sample') {
-    throw new Error('LIB_CODE가 없거나 sample입니다. 실제 도서관 코드를 Actions Variables에 설정하세요.')
+    throw new Error('도서관 코드(LIB_CODE/DALSEONG_LIBRARY_CODE)가 없거나 sample입니다. 실제 도서관 코드를 설정하세요.')
   }
 
   const previousRows = (await readJson<BookHolding[]>(LATEST_PATH)).map((row, index) =>

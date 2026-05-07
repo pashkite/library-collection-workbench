@@ -104,10 +104,25 @@ def extract_docs(payload: dict) -> list[dict]:
 
 
 def first_call_number(doc: dict) -> dict:
-    call_numbers = doc.get("callNumbers", {})
-    call_number = call_numbers.get("callNumber") if isinstance(call_numbers, dict) else None
-    values = [item for item in as_list(call_number) if isinstance(item, dict)]
+    values: list[dict] = []
+    for entry in as_list(doc.get("callNumbers")):
+        if isinstance(entry, dict) and "callNumber" in entry:
+            values.extend(item for item in as_list(entry.get("callNumber")) if isinstance(item, dict))
+        elif isinstance(entry, dict):
+            values.append(entry)
     return values[0] if values else {}
+
+
+def read_call_number(call_number: dict) -> str:
+    return read_string(call_number.get("call_no") or call_number.get("book_code"))
+
+
+def read_shelf_name(call_number: dict) -> str:
+    return read_string(
+        call_number.get("shelf_loc_name")
+        or call_number.get("separate_shelf_name")
+        or call_number.get("shelf_loc_code")
+    )
 
 
 def standardize_doc(doc: dict, index: int, lib_code: str, library_name: str) -> dict:
@@ -121,9 +136,9 @@ def standardize_doc(doc: dict, index: int, lib_code: str, library_name: str) -> 
         "publicationYear": read_string(doc.get("publication_year")),
         "isbn": read_string(doc.get("isbn13")),
         "kdc": read_string(doc.get("class_no")),
-        "callNumber": read_string(call_number.get("call_no")),
-        "shelfName": read_string(call_number.get("shelf_loc_name")),
-        "registeredAt": read_string(call_number.get("reg_date")),
+        "callNumber": read_call_number(call_number),
+        "shelfName": read_shelf_name(call_number),
+        "registeredAt": read_string(call_number.get("reg_date") or doc.get("reg_date")),
         "registrationNumber": find_registration_number(doc, call_number),
     }
     dedupe_key = make_dedupe_key(row)

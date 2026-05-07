@@ -15,6 +15,10 @@ node_modules
 dist
 dist-ssr
 *.local
+tools/data4library-full-fetch/
+public/data/backup/
+tools/python-holdings-fetcher/.venv/
+tools/python-holdings-fetcher/output/
 __pycache__/
 *.py[cod]
 

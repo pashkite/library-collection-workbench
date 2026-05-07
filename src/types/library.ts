@@ -36,10 +36,25 @@ export interface PurchaseCandidate {
 }
 
 export interface PurchaseReviewResult extends PurchaseCandidate {
-  duplicateStatus: 'ISBN 중복' | '구입 검토'
-  reviewResult: '기존 소장 확인' | '담당자 검토 필요'
+  duplicateStatus: 'ISBN 중복' | '유사 중복 의심' | '구입 검토'
+  reviewResult: '기존 소장 확인' | '유사 자료 확인 필요' | '담당자 검토 필요'
   matchedHolding?: BookHolding
+  similarHoldings?: StoredBookHolding[]
   note: string
+}
+
+export interface PurchaseColumnMapping {
+  title?: string
+  author?: string
+  publisher?: string
+  isbn?: string
+  price?: string
+}
+
+export interface WorkbookPreview {
+  headers: string[]
+  sampleRows: Record<string, string>[]
+  autoMapping: PurchaseColumnMapping
 }
 
 export interface KdcInfo {
@@ -93,17 +108,25 @@ export interface AladinBookDetail {
   salesPoint?: number
   stockStatus?: string
   cachedAt?: string
+  link?: string
+  categoryName?: string
+  customerReviewRank?: number
+  itemPage?: number
 }
 
 export interface SelectionBasis {
+  id: string
   isbn: string
   title: string
+  author?: string
+  publisher?: string
   recommendedBook?: boolean
   sejongBook?: boolean
   awardName?: string
   outOfPrint?: boolean
   authorReviewStatus?: '확인 전' | '확인 필요' | '확인 완료'
   staffMemo?: string
+  aladinDetail?: AladinBookDetail
 }
 
 export interface ExportPreset {
@@ -134,6 +157,8 @@ export interface HoldingSearchFilters {
   author: string
   publisher: string
   isbn: string
+  materialType: 'book' | 'nonbook' | 'all'
+  shelfName: string
 }
 
 export interface HoldingSearchResult {
@@ -141,4 +166,15 @@ export interface HoldingSearchResult {
   total: number
   page: number
   pageSize: number
+}
+
+export interface NewReleaseFilters extends HoldingSearchFilters {
+  datePreset: '30' | '60' | '90' | '180' | '365' | 'all'
+  kdcMajor: string
+  publicationYearFrom: string
+  includeUndated: boolean
+}
+
+export interface NewReleaseSearchResult extends HoldingSearchResult {
+  undatedCount: number
 }

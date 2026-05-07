@@ -1,7 +1,15 @@
-import * as XLSX from 'xlsx'
-import type { PurchaseCandidate, PurchaseReviewResult } from '../types/library'
+import type {
+  PurchaseCandidate,
+  PurchaseColumnMapping,
+  PurchaseReviewResult,
+  WorkbookPreview,
+} from '../types/library'
 import { normalizeIsbn } from '../utils/normalize'
-import { findHoldingByIsbn } from './libraryDb'
+import { findHoldingByIsbn, findSimilarHoldings } from './libraryDb'
+
+async function loadXlsx() {
+  return import('xlsx')
+}
 
 const columnCandidates = {
   title: ['도서명', '서명', '제목', '자료명'],
@@ -17,6 +25,16 @@ function findColumn(headers: string[], candidates: string[]) {
   )
 }
 
+function autoDetectColumns(headers: string[]): PurchaseColumnMapping {
+  return {
+    title: findColumn(headers, columnCandidates.title),
+    author: findColumn(headers, columnCandidates.author),
+    publisher: findColumn(headers, columnCandidates.publisher),
+    isbn: findColumn(headers, columnCandidates.isbn),
+    price: findColumn(headers, columnCandidates.price),
+  }
+}
+
 function readPrice(value: unknown): number | undefined {
   const normalized = String(value ?? '').replace(/[^0-9]/g, '')
   if (!normalized) return undefined
@@ -24,6 +42,11 @@ function readPrice(value: unknown): number | undefined {
 }
 
 export async function parsePurchaseWorkbook(file: File): Promise<PurchaseCandidate[]> {
+  return parsePurchaseWorkbookWithMapping(file)
+}
+
+export async function readPurchaseWorkbookPreview(file: File): Promise<WorkbookPreview> {
+  const XLSX = await loadXlsx()
   const buffer = await file.arrayBuffer()
   const workbook = XLSX.read(buffer, { type: 'array' })
   const sheet = workbook.Sheets[workbook.SheetNames[0]]
@@ -33,14 +56,38 @@ export async function parsePurchaseWorkbook(file: File): Promise<PurchaseCandida
   if (rows.length === 0) throw new Error('엑셀 파일에 검토할 행이 없습니다.')
 
   const headers = Object.keys(rows[0])
-  const titleColumn = findColumn(headers, columnCandidates.title)
-  const authorColumn = findColumn(headers, columnCandidates.author)
-  const publisherColumn = findColumn(headers, columnCandidates.publisher)
-  const isbnColumn = findColumn(headers, columnCandidates.isbn)
-  const priceColumn = findColumn(headers, columnCandidates.price)
+  return {
+    headers,
+    sampleRows: rows.slice(0, 3).map((row) =>
+      Object.fromEntries(headers.map((header) => [header, String(row[header] ?? '')])),
+    ),
+    autoMapping: autoDetectColumns(headers),
+  }
+}
+
+export async function parsePurchaseWorkbookWithMapping(
+  file: File,
+  mapping?: PurchaseColumnMapping,
+): Promise<PurchaseCandidate[]> {
+  const XLSX = await loadXlsx()
+  const buffer = await file.arrayBuffer()
+  const workbook = XLSX.read(buffer, { type: 'array' })
+  const sheet = workbook.Sheets[workbook.SheetNames[0]]
+  if (!sheet) throw new Error('엑셀 파일에서 첫 번째 시트를 찾지 못했습니다.')
+
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+  if (rows.length === 0) throw new Error('엑셀 파일에 검토할 행이 없습니다.')
+
+  const headers = Object.keys(rows[0])
+  const detected = autoDetectColumns(headers)
+  const titleColumn = mapping?.title || detected.title
+  const authorColumn = mapping?.author || detected.author
+  const publisherColumn = mapping?.publisher || detected.publisher
+  const isbnColumn = mapping?.isbn || detected.isbn
+  const priceColumn = mapping?.price || detected.price
 
   if (!titleColumn && !isbnColumn) {
-    throw new Error('도서명 또는 ISBN 열을 자동 인식하지 못했습니다. 수동 매핑 UI는 Phase 2 TODO입니다.')
+    throw new Error('도서명 또는 ISBN 열을 지정해야 합니다.')
   }
 
   return rows.map((row, index) => {
@@ -66,17 +113,26 @@ export async function reviewPurchaseCandidates(
     const matchedHolding = candidate.normalizedIsbn
       ? await findHoldingByIsbn(candidate.normalizedIsbn)
       : undefined
+    const similarHoldings = matchedHolding ? [] : await findSimilarHoldings(candidate)
+    const hasSimilar = similarHoldings.length > 0
 
     results.push({
       ...candidate,
-      duplicateStatus: matchedHolding ? 'ISBN 중복' : '구입 검토',
-      reviewResult: matchedHolding ? '기존 소장 확인' : '담당자 검토 필요',
+      duplicateStatus: matchedHolding ? 'ISBN 중복' : hasSimilar ? '유사 중복 의심' : '구입 검토',
+      reviewResult: matchedHolding
+        ? '기존 소장 확인'
+        : hasSimilar
+          ? '유사 자료 확인 필요'
+          : '담당자 검토 필요',
       matchedHolding,
+      similarHoldings,
       note: matchedHolding
         ? '소장목록 ISBN과 완전 일치합니다.'
-        : candidate.normalizedIsbn
+        : hasSimilar
+          ? '서명, 저자, 출판사 기준으로 유사 소장자료가 있습니다.'
+          : candidate.normalizedIsbn
           ? 'ISBN 완전 일치 소장자료가 없습니다.'
-          : 'ISBN이 없어 서명·저자 유사 중복 검토가 필요합니다. Phase 2 TODO.',
+          : 'ISBN이 없어 서명·저자 기준으로 검토했습니다.',
     })
   }
 

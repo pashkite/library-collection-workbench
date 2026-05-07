@@ -9,6 +9,7 @@
     "lint": "node node_modules/eslint/bin/eslint.js .",
     "preview": "node node_modules/vite/bin/vite.js preview --host 127.0.0.1",
     "fetch:holdings": "node --experimental-strip-types scripts/fetchHoldings.ts",
+    "fetch:holdings:full": "node --experimental-strip-types scripts/fetchHoldingsFull.ts",
     "update:holdings:daily": "node --experimental-strip-types scripts/updateDailyHoldings.ts"
   },
   "dependencies": {

@@ -22,20 +22,44 @@ macOS, Linux:
 
 ```bash
 source .venv/bin/activate
-pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
+```
+
+WSL/Ubuntu에서 `tkinter`가 없다는 오류가 나면 아래 시스템 패키지도 필요합니다.
+
+```bash
+sudo apt install python3-tk
+```
+
+WSL에서 한글이 네모나 깨진 글자로 보이면 한글 폰트가 없는 상태입니다. 프로그램은 Windows의
+`malgun.ttf`가 있으면 자동 등록을 시도합니다. 그래도 깨지면 아래 폰트를 설치하세요.
+
+```bash
+sudo apt install fonts-noto-cjk
 ```
 
 ## 실행
 
 ```bash
-python main.py
+python3 main.py
 ```
 
 또는 이 폴더에서 다음 명령으로도 실행할 수 있습니다.
 
 ```bash
-python -m src
+python3 -m src
 ```
+
+Windows PowerShell에서 실행할 때만 `python` 또는 `py` 명령을 사용하세요. WSL에서는 보통
+`python` 명령이 없고 `python3`만 설치되어 있습니다.
+
+## .env 자동 입력
+
+프로젝트 루트의 `.env`에 아래 값이 있으면 GUI 입력창에 자동으로 채웁니다. 값은 로그와 저장 파일에 기록하지 않습니다.
+
+- `DATA4LIBRARY_KEY` 또는 `LIBRARY_NARU_AUTH_KEY`
+- `LIB_CODE` 또는 `DALSEONG_LIBRARY_CODE`
+- `LIB_NAME`, `DALSEONG_LIBRARY_NAME`, `LIBRARY_NAME` 중 하나
 
 ## 기본 흐름
 

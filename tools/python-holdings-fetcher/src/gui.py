@@ -12,8 +12,14 @@ import customtkinter as ctk
 
 from .api import Data4LibraryClient
 from .dedupe import dedupe_holdings
+from .env import env_value, find_dotenv, load_dotenv
+from .fonts import choose_korean_font, prepare_korean_font
 from .git_ops import apply_to_repo, commit_and_push, preview_repo_apply, validate_repo
 from .storage import save_dataset, save_excel_only
+
+MAX_PAGE_SIZE = 300
+MAX_MAX_PAGES = 2000
+MAX_LOOKBACK_DAYS = 365
 
 
 class HoldingsFetcherApp(ctk.CTk):
@@ -25,6 +31,14 @@ class HoldingsFetcherApp(ctk.CTk):
 
         ctk.set_appearance_mode("light")
         ctk.set_default_color_theme("blue")
+        self.font_family, self.font_warning = choose_korean_font(self)
+        self.default_font = ctk.CTkFont(family=self.font_family, size=14)
+        self.small_font = ctk.CTkFont(family=self.font_family, size=13)
+        self.bold_font = ctk.CTkFont(family=self.font_family, size=14, weight="bold")
+        self.section_font = ctk.CTkFont(family=self.font_family, size=15, weight="bold")
+        self.title_font = ctk.CTkFont(family=self.font_family, size=20, weight="bold")
+        self.text_font = ctk.CTkFont(family=self.font_family, size=13)
+        self.option_add("*Font", f"{{{self.font_family}}} 12")
 
         self.stop_event = threading.Event()
         self.events: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -32,14 +46,17 @@ class HoldingsFetcherApp(ctk.CTk):
         self.last_meta: dict = {}
         self.last_saved: dict | None = None
         self.worker: threading.Thread | None = None
+        self.loaded_env_path = load_dotenv()
 
-        self.auth_key = ctk.StringVar()
-        self.lib_code = ctk.StringVar()
-        self.library_name = ctk.StringVar(value="달성군립도서관")
+        self.auth_key = ctk.StringVar(value=env_value("DATA4LIBRARY_KEY", "LIBRARY_NARU_AUTH_KEY"))
+        self.lib_code = ctk.StringVar(value=env_value("LIB_CODE", "DALSEONG_LIBRARY_CODE"))
+        self.library_name = ctk.StringVar(
+            value=env_value("LIB_NAME", "DALSEONG_LIBRARY_NAME", "LIBRARY_NAME") or "달성군립도서관"
+        )
         self.output_dir = ctk.StringVar(value=str(Path.cwd() / "output"))
-        self.repo_dir = ctk.StringVar()
+        self.repo_dir = ctk.StringVar(value=str(self._default_repo_dir()))
         self.page_size = ctk.StringVar(value="300")
-        self.max_pages = ctk.StringVar(value="200")
+        self.max_pages = ctk.StringVar(value="500")
         self.lookback_days = ctk.StringVar(value="7")
 
         self.status_vars = {
@@ -64,7 +81,7 @@ class HoldingsFetcherApp(ctk.CTk):
         left.grid(row=0, column=0, sticky="nsw", padx=14, pady=14)
         left.grid_columnconfigure(1, weight=1)
 
-        title = ctk.CTkLabel(left, text="수집 설정", font=ctk.CTkFont(size=20, weight="bold"))
+        title = ctk.CTkLabel(left, text="수집 설정", font=self.title_font)
         title.grid(row=0, column=0, columnspan=3, sticky="w", padx=16, pady=(16, 10))
 
         row = 1
@@ -89,7 +106,7 @@ class HoldingsFetcherApp(ctk.CTk):
             ("백업 열기", self.open_backup),
         ]
         for index, (text, command) in enumerate(buttons):
-            button = ctk.CTkButton(left, text=text, command=command)
+            button = ctk.CTkButton(left, text=text, command=command, font=self.default_font)
             button.grid(row=row + index, column=0, columnspan=3, sticky="ew", padx=16, pady=4)
 
         right = ctk.CTkFrame(self, corner_radius=12)
@@ -97,7 +114,7 @@ class HoldingsFetcherApp(ctk.CTk):
         right.grid_columnconfigure(0, weight=1)
         right.grid_rowconfigure(2, weight=1)
 
-        ctk.CTkLabel(right, text="상태", font=ctk.CTkFont(size=20, weight="bold")).grid(
+        ctk.CTkLabel(right, text="상태", font=self.title_font).grid(
             row=0, column=0, sticky="w", padx=16, pady=(16, 8)
         )
 
@@ -118,16 +135,29 @@ class HoldingsFetcherApp(ctk.CTk):
         log_frame.grid(row=2, column=0, sticky="nsew", padx=16, pady=(0, 16))
         log_frame.grid_columnconfigure(0, weight=1)
         log_frame.grid_rowconfigure(1, weight=1)
-        ctk.CTkLabel(log_frame, text="로그", font=ctk.CTkFont(size=15, weight="bold")).grid(
+        ctk.CTkLabel(log_frame, text="로그", font=self.section_font).grid(
             row=0, column=0, sticky="w", padx=12, pady=(10, 4)
         )
-        self.log_box = ctk.CTkTextbox(log_frame, wrap="word")
+        self.log_box = ctk.CTkTextbox(log_frame, wrap="word", font=self.text_font)
         self.log_box.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
         self.log("인증키는 로그와 저장 파일에 남기지 않습니다.")
+        self.log(f"화면 글꼴: {self.font_family}")
+        if self.font_warning:
+            self.log(self.font_warning)
+        if self.loaded_env_path:
+            self.log(f".env 로드 완료: {self.loaded_env_path}")
+
+    def _default_repo_dir(self) -> Path:
+        env_path = find_dotenv()
+        if env_path:
+            return env_path.parent
+        return Path.cwd()
 
     def _entry(self, parent: ctk.CTkFrame, row: int, label: str, variable: ctk.StringVar, show: str | None = None) -> int:
-        ctk.CTkLabel(parent, text=label).grid(row=row, column=0, sticky="w", padx=16, pady=(6, 2))
-        entry = ctk.CTkEntry(parent, textvariable=variable, show=show)
+        ctk.CTkLabel(parent, text=label, font=self.default_font).grid(
+            row=row, column=0, sticky="w", padx=16, pady=(6, 2)
+        )
+        entry = ctk.CTkEntry(parent, textvariable=variable, show=show, font=self.default_font)
         entry.grid(row=row + 1, column=0, columnspan=3, sticky="ew", padx=16, pady=(0, 6))
         return row + 2
 
@@ -139,11 +169,13 @@ class HoldingsFetcherApp(ctk.CTk):
         variable: ctk.StringVar,
         mode: str,
     ) -> int:
-        ctk.CTkLabel(parent, text=label).grid(row=row, column=0, sticky="w", padx=16, pady=(6, 2))
-        entry = ctk.CTkEntry(parent, textvariable=variable)
+        ctk.CTkLabel(parent, text=label, font=self.default_font).grid(
+            row=row, column=0, sticky="w", padx=16, pady=(6, 2)
+        )
+        entry = ctk.CTkEntry(parent, textvariable=variable, font=self.default_font)
         entry.grid(row=row + 1, column=0, columnspan=2, sticky="ew", padx=(16, 6), pady=(0, 6))
         command = lambda: self._choose_path(variable, mode)
-        ctk.CTkButton(parent, text="선택", width=64, command=command).grid(
+        ctk.CTkButton(parent, text="선택", width=64, command=command, font=self.default_font).grid(
             row=row + 1, column=2, sticky="ew", padx=(0, 16), pady=(0, 6)
         )
         return row + 2
@@ -156,11 +188,13 @@ class HoldingsFetcherApp(ctk.CTk):
         label: str,
         variable: ctk.StringVar,
         columnspan: int = 1,
-    ) -> None:
+        ) -> None:
         frame = ctk.CTkFrame(parent, fg_color="white", corner_radius=8)
         frame.grid(row=row, column=column, columnspan=columnspan, sticky="ew", padx=8, pady=8)
-        ctk.CTkLabel(frame, text=label, text_color="#66707c").pack(anchor="w", padx=10, pady=(8, 0))
-        ctk.CTkLabel(frame, textvariable=variable, font=ctk.CTkFont(size=14, weight="bold"), wraplength=380).pack(
+        ctk.CTkLabel(frame, text=label, text_color="#66707c", font=self.small_font).pack(
+            anchor="w", padx=10, pady=(8, 0)
+        )
+        ctk.CTkLabel(frame, textvariable=variable, font=self.bold_font, wraplength=380).pack(
             anchor="w", padx=10, pady=(2, 8)
         )
 
@@ -215,6 +249,12 @@ class HoldingsFetcherApp(ctk.CTk):
             raise ValueError(f"{label}에는 1 이상의 숫자를 입력하세요.")
         return value
 
+    def _bounded_int_value(self, variable: ctk.StringVar, label: str, maximum: int) -> int:
+        value = self._int_value(variable, label)
+        if value > maximum:
+            raise ValueError(f"{label}은 {maximum} 이하로 입력하세요.")
+        return value
+
     def _run_worker(self, target) -> None:
         if self.worker and self.worker.is_alive():
             messagebox.showinfo("실행 중", "이미 실행 중인 작업이 있습니다.")
@@ -249,12 +289,18 @@ class HoldingsFetcherApp(ctk.CTk):
         self._run_worker(worker)
 
     def start_full_fetch(self) -> None:
+        try:
+            page_size = self._bounded_int_value(self.page_size, "pageSize", MAX_PAGE_SIZE)
+            max_pages = self._bounded_int_value(self.max_pages, "maxPages", MAX_MAX_PAGES)
+            lookback_days = self._bounded_int_value(self.lookback_days, "최근 조회 기간", MAX_LOOKBACK_DAYS)
+        except Exception as error:
+            self.status_vars["error"].set(str(error))
+            messagebox.showerror("입력 오류", str(error))
+            return
+
         def worker() -> None:
             try:
                 self.stop_event.clear()
-                page_size = self._int_value(self.page_size, "pageSize")
-                max_pages = self._int_value(self.max_pages, "maxPages")
-                lookback_days = self._int_value(self.lookback_days, "최근 조회 기간")
                 client = self._client()
 
                 def progress(payload: dict) -> None:
@@ -310,7 +356,7 @@ class HoldingsFetcherApp(ctk.CTk):
                 Path(self.output_dir.get()),
                 self.last_rows,
                 self.last_meta,
-                self._int_value(self.lookback_days, "최근 조회 기간"),
+                self._bounded_int_value(self.lookback_days, "최근 조회 기간", MAX_LOOKBACK_DAYS),
             )
             self.last_saved = result
             self.last_rows = result["rows"]
@@ -356,7 +402,7 @@ class HoldingsFetcherApp(ctk.CTk):
                 repo,
                 self.last_rows,
                 self.last_meta,
-                self._int_value(self.lookback_days, "최근 조회 기간"),
+                self._bounded_int_value(self.lookback_days, "최근 조회 기간", MAX_LOOKBACK_DAYS),
             )
             self.log(f"Git 저장소 반영 완료: {result['latestPath']}")
             self.log(f"백업 폴더: {result['backupDir']}")
@@ -395,5 +441,6 @@ class HoldingsFetcherApp(ctk.CTk):
 
 
 def main() -> None:
+    prepare_korean_font()
     app = HoldingsFetcherApp()
     app.mainloop()

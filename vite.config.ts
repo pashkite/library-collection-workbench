@@ -5,6 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/library-collection-workbench/',
   cacheDir: '/tmp/library-collection-workbench-vite-cache',
+  envPrefix: ['VITE_', 'ALADIN_'],
   plugins: [react()],
   build: {
     cssMinify: false,

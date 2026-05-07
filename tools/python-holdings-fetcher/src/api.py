@@ -20,6 +20,7 @@ from .normalizer import (
 
 API_URL = "https://data4library.kr/api/itemSrch"
 IP_URL = "https://api.ipify.org?format=json"
+MAX_PAGE_SIZE = 300
 
 
 class Data4LibraryClient:
@@ -112,6 +113,8 @@ class Data4LibraryClient:
         self.api_call_count = 0
         page_size = max(1, int(page_size))
         max_pages = max(1, int(max_pages))
+        if page_size > MAX_PAGE_SIZE:
+            raise ValueError(f"pageSize는 {MAX_PAGE_SIZE} 이하로 입력하세요. 권장값은 300입니다.")
 
         first = self._request({"type": "ALL", "pageNo": "1", "pageSize": str(page_size)})
         expected_total = int(first.get("response", {}).get("numFound") or len(extract_docs(first)))
