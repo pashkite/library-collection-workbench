@@ -109,6 +109,10 @@ function compareRowsByKey(a: PurchaseReviewResult, b: PurchaseReviewResult, key:
   return textCollator.compare(aText, bText)
 }
 
+function getSortColumnLabel(key: SortKey) {
+  return sortableColumns.find((column) => column.key === key)?.label ?? key
+}
+
 export function PurchaseReviewPage() {
   const [results, setResults] = useState<PurchaseReviewResult[]>([])
   const [sortState, setSortState] = useState<SortState>()
@@ -128,8 +132,10 @@ export function PurchaseReviewPage() {
         : await parsePurchaseWorkbook(file)
       const reviewed = await reviewPurchaseCandidates(candidates)
       setResults(reviewed)
+      setSortState(undefined)
     } catch (uploadError) {
       setResults([])
+      setSortState(undefined)
       setError(
         uploadError instanceof Error
           ? uploadError.message
@@ -176,6 +182,9 @@ export function PurchaseReviewPage() {
 
   const exactDuplicateCount = results.filter((row) => row.duplicateStatus === 'ISBN 중복').length
   const similarCount = results.filter((row) => row.duplicateStatus === '유사 중복 의심').length
+  const sortDescription = sortState
+    ? `${getSortColumnLabel(sortState.key)} ${sortState.direction === 'asc' ? '오름차순' : '내림차순'}`
+    : '업로드 순서'
   const sortedResults = useMemo(() => {
     if (!sortState) return results
 
@@ -227,6 +236,11 @@ export function PurchaseReviewPage() {
             type="button"
             className="primary-button"
             disabled={results.length === 0}
+            title={
+              results.length === 0
+                ? '검토할 엑셀을 업로드하면 사용할 수 있습니다.'
+                : '현재 목록 순서대로 엑셀을 저장합니다.'
+            }
             onClick={() =>
               void downloadReviewExcel(
                 sortedResults,
@@ -352,6 +366,24 @@ export function PurchaseReviewPage() {
       </section>
 
       <section className="panel table-panel">
+        <div className="table-toolbar">
+          <div>
+            <strong>검토 결과 목록</strong>
+            <span aria-live="polite">
+              현재 정렬: {sortDescription} · {sortedResults.length.toLocaleString()}건
+            </span>
+          </div>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={!sortState}
+            onClick={() => setSortState(undefined)}
+            title={sortState ? '처음 업로드된 순서로 되돌립니다.' : '이미 업로드 순서로 표시 중입니다.'}
+          >
+            <RefreshCw size={16} aria-hidden="true" />
+            정렬 초기화
+          </button>
+        </div>
         <p className="table-hint">중복판정은 보조 자료입니다. 유사 중복 의심 건은 담당자가 서지와 판사항을 확인하세요.</p>
         <div className="table-scroll">
           <table className="purchase-review-table">
