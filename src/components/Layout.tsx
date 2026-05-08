@@ -1,4 +1,5 @@
 import type { PropsWithChildren } from 'react'
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import {
   BookMarked,
@@ -7,8 +8,10 @@ import {
   HelpCircle,
   Home,
   Library,
+  Menu,
   Search,
   Settings,
+  X,
 } from 'lucide-react'
 import { useAppData } from '../lib/AppDataContext'
 
@@ -25,22 +28,35 @@ const navItems = [
 
 export function Layout({ children }: PropsWithChildren) {
   const { data } = useAppData()
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar${mobileNavOpen ? ' nav-open' : ''}`}>
         <div className="brand">
-          <Library size={26} aria-hidden="true" />
-          <div>
-            <strong>장서 업무 보조</strong>
-            <span>종합자료실</span>
+          <div className="brand-lockup">
+            <Library size={26} aria-hidden="true" />
+            <div>
+              <strong>장서 업무 보조</strong>
+              <span>종합자료실</span>
+            </div>
           </div>
+          <button
+            type="button"
+            className="mobile-nav-toggle"
+            aria-controls="main-navigation"
+            aria-expanded={mobileNavOpen}
+            aria-label={mobileNavOpen ? '주요 메뉴 닫기' : '주요 메뉴 열기'}
+            onClick={() => setMobileNavOpen((value) => !value)}
+          >
+            {mobileNavOpen ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
+          </button>
         </div>
-        <nav aria-label="주요 메뉴">
+        <nav id="main-navigation" aria-label="주요 메뉴">
           {navItems.map((item) => {
             const Icon = item.icon
             return (
-              <NavLink key={item.to} to={item.to} end={item.to === '/'}>
+              <NavLink key={item.to} to={item.to} end={item.to === '/'} onClick={() => setMobileNavOpen(false)}>
                 <Icon size={17} aria-hidden="true" />
                 {item.label}
               </NavLink>
