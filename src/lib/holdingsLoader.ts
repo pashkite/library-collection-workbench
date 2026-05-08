@@ -21,8 +21,8 @@ function isNewerRemote(remote: DataMeta, local?: DataMeta): boolean {
   )
 }
 
-function ensurePublicFields(rows: BookHolding[]): BookHolding[] {
-  return rows.map((row) => ({
+function ensurePublicFields(row: BookHolding): BookHolding {
+  return {
     title: row.title ?? '',
     author: row.author ?? '',
     publisher: row.publisher ?? '',
@@ -36,7 +36,7 @@ function ensurePublicFields(rows: BookHolding[]): BookHolding[] {
     dedupeKey: row.dedupeKey ?? '',
     libCode: row.libCode ?? '',
     libraryName: row.libraryName ?? '',
-  }))
+  }
 }
 
 export async function bootstrapHoldings(
@@ -79,8 +79,18 @@ export async function bootstrapHoldings(
     `${DATA_PATH}/holdings.latest.json`,
     '소장목록',
   )
-  const publicRows = ensurePublicFields(downloadedRows)
-  const storedRows = publicRows.map((row, index) => toStoredHolding(row, index, remoteMeta.baseDate))
+
+  onProgress({
+    stage: '브라우저 저장용 데이터 정리 중...',
+    percent: 35,
+    processed: 0,
+    total: downloadedRows.length,
+    message: '대용량 소장목록을 검색 가능한 형태로 정리하고 있습니다.',
+  })
+
+  const storedRows = downloadedRows.map((row, index) =>
+    toStoredHolding(ensurePublicFields(row), index, remoteMeta.baseDate),
+  )
 
   if (storedRows.length === 0) {
     throw new Error('소장목록 JSON에 저장할 도서 데이터가 없습니다.')

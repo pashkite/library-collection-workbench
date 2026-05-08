@@ -36,6 +36,7 @@ interface LibraryWorkDb extends DBSchema {
 const DB_NAME = 'library-collection-workbench'
 const DB_VERSION = 1
 const META_KEY = 'holdings-meta'
+const STORE_CHUNK_SIZE = 1000
 
 export async function getDb() {
   return openDB<LibraryWorkDb>(DB_NAME, DB_VERSION, {
@@ -62,20 +63,28 @@ export async function replaceHoldings(
   onProgress?: (processed: number, total: number) => void,
 ) {
   const db = await getDb()
-  const transaction = db.transaction(['holdings', 'meta'], 'readwrite')
-  await transaction.objectStore('holdings').clear()
+  const resetTransaction = db.transaction(['holdings', 'meta'], 'readwrite')
+  await resetTransaction.objectStore('holdings').clear()
+  await resetTransaction.objectStore('meta').delete(META_KEY)
+  await resetTransaction.done
 
-  let processed = 0
-  for (const row of rows) {
-    await transaction.objectStore('holdings').put(row)
-    processed += 1
-    if (processed % 25 === 0 || processed === rows.length) {
-      onProgress?.(processed, rows.length)
+  for (let index = 0; index < rows.length; index += STORE_CHUNK_SIZE) {
+    const transaction = db.transaction('holdings', 'readwrite')
+    const store = transaction.objectStore('holdings')
+    const chunk = rows.slice(index, index + STORE_CHUNK_SIZE)
+
+    for (const row of chunk) {
+      store.put(row)
     }
+
+    await transaction.done
+    const processed = Math.min(index + chunk.length, rows.length)
+    onProgress?.(processed, rows.length)
   }
 
-  await transaction.objectStore('meta').put({ key: META_KEY, value: meta })
-  await transaction.done
+  const metaTransaction = db.transaction('meta', 'readwrite')
+  await metaTransaction.objectStore('meta').put({ key: META_KEY, value: meta })
+  await metaTransaction.done
 }
 
 export async function getStoredMeta(): Promise<DataMeta | undefined> {
@@ -115,7 +124,30 @@ export async function searchHoldings(
   const rows: StoredBookHolding[] = []
   let total = 0
   const db = await getDb()
-  let cursor = await db.transaction('holdings').store.openCursor()
+  const hasTextFilters = Boolean(
+    normalizedFilters.title ||
+      normalizedFilters.author ||
+      normalizedFilters.publisher ||
+      normalizedFilters.isbn ||
+      filters.shelfName,
+  )
+
+  if (!hasTextFilters && filters.materialType === 'all') {
+    total = await db.count('holdings')
+    const store = db.transaction('holdings').store
+    let cursor = await store.openCursor()
+    if (cursor && offset > 0) cursor = await cursor.advance(offset)
+
+    while (cursor && rows.length < pageSize) {
+      rows.push(cursor.value)
+      cursor = await cursor.continue()
+    }
+
+    return { rows, total, page, pageSize }
+  }
+
+  const store = db.transaction('holdings').store
+  let cursor = await store.openCursor()
 
   while (cursor) {
     const row = cursor.value
@@ -171,13 +203,13 @@ export function getMaterialType(
   const publisher = normalizeText(row.publisher)
   const kdc = normalizeKdc(row.kdc)
   const mediaLocationOrPublisher =
-    /(dvd|cd-rom|비도서|오디오북|녹음|영상|전자자료|multimedia|blu-ray|블루레이)/i.test(
+    /(디지털자료실|비도서|오디오북|녹음|영상|전자자료|dvd|cd-rom|multimedia|blu-ray|블루레이)/i.test(
       `${shelfAndCall} ${publisher}`,
     )
   const mediaTitleMarker = /(\[dvd\]|\(dvd\)|: ?dvd|\[blu-ray\]|\(blu-ray\)|\[cd\]|\(cd\))/i.test(
     title,
   )
-  const movieRecord = /^688(?:\.|$)/.test(kdc) && author.includes('감독')
+  const movieRecord = /^688(?:\.|$)/.test(kdc) && /(감독|연출|제작|(^|\s)감(\s|$))/.test(author)
 
   if (mediaLocationOrPublisher || mediaTitleMarker || movieRecord) {
     return 'nonbook' as const

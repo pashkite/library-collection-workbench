@@ -300,6 +300,7 @@ main {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
   margin-bottom: 14px;
 }
 
@@ -367,6 +368,7 @@ input[type='checkbox'] {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
   padding: 14px 16px;
   border-bottom: 1px solid var(--border);
 }
@@ -381,6 +383,7 @@ input[type='checkbox'] {
   display: flex;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
   color: var(--muted);
   font-size: 13px;
 }
@@ -863,21 +866,41 @@ td {
 @media (max-width: 980px) {
   .app-shell {
     grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 
   .sidebar {
-    position: sticky;
+    position: static;
     z-index: 10;
+    align-self: start;
+    min-width: 0;
     height: auto;
     padding: 12px;
+    overflow: hidden;
   }
 
   .sidebar nav {
     display: flex;
     gap: 6px;
-    padding-bottom: 4px;
-    overflow-x: auto;
+    flex-wrap: wrap;
+    min-width: 0;
+    padding-bottom: 0;
+    overflow: visible;
+    scrollbar-color: rgba(255, 255, 255, 0.34) transparent;
     scrollbar-width: thin;
+  }
+
+  .sidebar nav::-webkit-scrollbar {
+    height: 6px;
+  }
+
+  .sidebar nav::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .sidebar nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.28);
+    border-radius: 999px;
   }
 
   .brand {
@@ -885,11 +908,30 @@ td {
   }
 
   .sidebar a {
-    flex: 0 0 auto;
+    flex: 0 1 auto;
     min-height: 38px;
     white-space: nowrap;
   }
 
+  .metric-grid,
+  .quick-grid,
+  .settings-grid,
+  .help-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .page-header,
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  main {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 760px) {
   .metric-grid,
   .quick-grid,
   .settings-grid,

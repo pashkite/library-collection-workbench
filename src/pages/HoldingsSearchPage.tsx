@@ -14,7 +14,7 @@ const initialFilters: HoldingSearchFilters = {
   author: '',
   publisher: '',
   isbn: '',
-  materialType: 'book',
+  materialType: 'all',
   shelfName: '',
 }
 
@@ -280,9 +280,9 @@ export function HoldingsSearchPage() {
                 updateFilter('materialType', event.target.value as HoldingSearchFilters['materialType'])
               }
             >
-              <option value="book">도서자료 기본</option>
-              <option value="nonbook">비도서자료</option>
               <option value="all">전체</option>
+              <option value="book">도서자료</option>
+              <option value="nonbook">비도서자료</option>
             </select>
           </label>
           <label>
@@ -325,7 +325,7 @@ export function HoldingsSearchPage() {
         {facetOptions.missingShelfCount > 0 ? (
           <p className="filter-note">
             현재 소장목록 {facetOptions.missingShelfCount.toLocaleString()}건에 자료실 값이 없어 자료실 필터가 제한됩니다.
-            자료구분은 도서자료를 기본으로 보고, DVD/CD 등 비도서 단서가 있는 자료만 비도서자료로 분리합니다.
+            자료구분은 DVD/CD, 디지털자료실, 영상자료 등 비도서 단서를 기준으로 분리합니다.
           </p>
         ) : null}
       </section>

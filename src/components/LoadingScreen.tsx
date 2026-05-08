@@ -9,6 +9,7 @@ interface LoadingScreenProps {
 
 export function LoadingScreen({ progress, sampleBook, onComplete }: LoadingScreenProps) {
   const complete = progress.percent >= 100
+  const waitingForFirstStoredRow = progress.total > 0 && progress.processed === 0 && !complete
 
   return (
     <main className="loading-shell">
@@ -32,6 +33,11 @@ export function LoadingScreen({ progress, sampleBook, onComplete }: LoadingScree
           <p>
             처리 건수 {progress.processed.toLocaleString()} / {progress.total.toLocaleString()}
           </p>
+          {waitingForFirstStoredRow ? (
+            <p className="muted">
+              처음 여는 경우 파일 다운로드와 데이터 정리에 시간이 걸릴 수 있습니다. 저장이 시작되면 건수가 빠르게 올라갑니다.
+            </p>
+          ) : null}
           <p className="muted">{progress.message}</p>
         </div>
 
