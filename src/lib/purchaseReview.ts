@@ -319,10 +319,11 @@ export async function parsePurchaseWorkbookWithMapping(
 
 export async function reviewPurchaseCandidates(
   candidates: PurchaseCandidate[],
+  onProgress?: (processed: number, total: number) => void,
 ): Promise<PurchaseReviewResult[]> {
   const results: PurchaseReviewResult[] = []
 
-  for (const candidate of candidates) {
+  for (const [index, candidate] of candidates.entries()) {
     const matchedHolding = candidate.normalizedIsbn
       ? await findHoldingByIsbn(candidate.normalizedIsbn)
       : undefined
@@ -344,9 +345,11 @@ export async function reviewPurchaseCandidates(
         : hasSimilar
           ? '서명, 저자, 출판사 기준으로 유사 소장자료가 있습니다.'
           : candidate.normalizedIsbn
-          ? 'ISBN 완전 일치 소장자료가 없습니다.'
-          : 'ISBN이 없어 서명·저자 기준으로 검토했습니다.',
+            ? 'ISBN 완전 일치 소장자료가 없습니다.'
+            : 'ISBN이 없어 서명·저자 기준으로 검토했습니다.',
     })
+
+    onProgress?.(index + 1, candidates.length)
   }
 
   return results

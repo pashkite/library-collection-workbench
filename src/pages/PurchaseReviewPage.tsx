@@ -1,7 +1,8 @@
-import { Download, FileSpreadsheet, RefreshCw, Upload } from 'lucide-react'
+import { BookOpen, Download, FileSpreadsheet, RefreshCw, Upload } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageHeader } from '../components/PageHeader'
+import { getCachedAladinDetail, lookupAladinDetail } from '../lib/aladin'
 import { downloadReviewExcel } from '../lib/excel'
 import {
   parsePurchaseWorkbook,
@@ -9,7 +10,9 @@ import {
   readPurchaseWorkbookPreview,
   reviewPurchaseCandidates,
 } from '../lib/purchaseReview'
+import { getAladinKey } from '../lib/settingsStorage'
 import type { PurchaseColumnMapping, PurchaseReviewResult, WorkbookPreview } from '../types/library'
+import { normalizeIsbn } from '../utils/normalize'
 
 type SortDirection = 'asc' | 'desc'
 type SortKey =
@@ -29,6 +32,19 @@ interface SortState {
   key: SortKey
   direction: SortDirection
 }
+
+interface ReviewProgress {
+  stage: string
+  processed: number
+  total: number
+  message?: string
+}
+
+type ReviewCoverState =
+  | { status: 'loading' }
+  | { status: 'loaded'; coverUrl: string; title: string }
+  | { status: 'missing'; message: string }
+  | { status: 'error'; message: string }
 
 const mappingLabels: Array<{ key: keyof PurchaseColumnMapping; label: string; required?: boolean }> = [
   { key: 'title', label: '도서명', required: true },
@@ -116,6 +132,8 @@ function getSortColumnLabel(key: SortKey) {
 export function PurchaseReviewPage() {
   const [results, setResults] = useState<PurchaseReviewResult[]>([])
   const [sortState, setSortState] = useState<SortState>()
+  const [reviewProgress, setReviewProgress] = useState<ReviewProgress>()
+  const [coverByIsbn, setCoverByIsbn] = useState<Record<string, ReviewCoverState>>({})
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string>()
   const [fileName, setFileName] = useState<string>()
@@ -123,19 +141,153 @@ export function PurchaseReviewPage() {
   const [preview, setPreview] = useState<WorkbookPreview>()
   const [mapping, setMapping] = useState<PurchaseColumnMapping>({})
 
+  const loadReviewCover = async (row: PurchaseReviewResult) => {
+    const key = normalizeIsbn(row.isbn)
+    if (!key) return
+
+    setCoverByIsbn((current) => ({ ...current, [key]: { status: 'loading' } }))
+    try {
+      const detail = await lookupAladinDetail(key)
+      setCoverByIsbn((current) => ({
+        ...current,
+        [key]: detail.coverUrl
+          ? { status: 'loaded', coverUrl: detail.coverUrl, title: detail.title || row.title }
+          : { status: 'missing', message: '알라딘 표지 없음' },
+      }))
+    } catch (coverError) {
+      setCoverByIsbn((current) => ({
+        ...current,
+        [key]: {
+          status: 'error',
+          message: coverError instanceof Error ? coverError.message : '표지 조회 실패',
+        },
+      }))
+    }
+  }
+
+  const loadReviewCovers = async (reviewedRows: PurchaseReviewResult[]) => {
+    const uniqueRows = Array.from(
+      new Map(
+        reviewedRows
+          .map((row) => [normalizeIsbn(row.isbn), row] as const)
+          .filter(([key]) => Boolean(key)),
+      ).values(),
+    )
+
+    if (uniqueRows.length === 0) {
+      setReviewProgress({
+        stage: '표지 이미지 확인 건너뜀',
+        processed: 0,
+        total: 0,
+        message: 'ISBN이 있는 후보가 없어 표지를 조회하지 않았습니다.',
+      })
+      return
+    }
+
+    const cachedCovers: Record<string, ReviewCoverState> = {}
+    const uncachedRows: PurchaseReviewResult[] = []
+
+    for (const row of uniqueRows) {
+      const key = normalizeIsbn(row.isbn)
+      const cached = getCachedAladinDetail(key)
+      if (cached?.coverUrl) {
+        cachedCovers[key] = { status: 'loaded', coverUrl: cached.coverUrl, title: cached.title || row.title }
+      } else {
+        uncachedRows.push(row)
+      }
+    }
+
+    if (Object.keys(cachedCovers).length > 0) {
+      setCoverByIsbn((current) => ({ ...current, ...cachedCovers }))
+    }
+
+    if (uncachedRows.length === 0) {
+      setReviewProgress({
+        stage: '검토 완료',
+        processed: uniqueRows.length,
+        total: uniqueRows.length,
+        message: '캐시된 알라딘 표지를 표시했습니다.',
+      })
+      return
+    }
+
+    if (!getAladinKey()) {
+      setReviewProgress({
+        stage: '검토 완료',
+        processed: Object.keys(cachedCovers).length,
+        total: uniqueRows.length,
+        message: '알라딘 TTB Key를 저장하면 표지를 자동으로 가져옵니다.',
+      })
+      return
+    }
+
+    let processed = Object.keys(cachedCovers).length
+    setReviewProgress({
+      stage: '알라딘 표지 이미지 확인 중',
+      processed,
+      total: uniqueRows.length,
+      message: 'ISBN 기준으로 표지를 가져오고 있습니다.',
+    })
+
+    const batchSize = 4
+    for (let index = 0; index < uncachedRows.length; index += batchSize) {
+      const batch = uncachedRows.slice(index, index + batchSize)
+      await Promise.allSettled(batch.map((row) => loadReviewCover(row)))
+      processed += batch.length
+      setReviewProgress({
+        stage: '알라딘 표지 이미지 확인 중',
+        processed,
+        total: uniqueRows.length,
+        message: `${processed.toLocaleString()} / ${uniqueRows.length.toLocaleString()}건 확인`,
+      })
+    }
+
+    setReviewProgress({
+      stage: '검토 완료',
+      processed: uniqueRows.length,
+      total: uniqueRows.length,
+      message: '중복 검토와 표지 확인을 마쳤습니다.',
+    })
+  }
+
   const reviewFile = async (file: File, nextMapping?: PurchaseColumnMapping) => {
     setProcessing(true)
     setError(undefined)
+    setResults([])
+    setSortState(undefined)
+    setCoverByIsbn({})
+    setReviewProgress({
+      stage: '엑셀 행 읽는 중',
+      processed: 0,
+      total: 0,
+      message: '업로드한 파일에서 후보 도서를 읽고 있습니다.',
+    })
     try {
       const candidates = nextMapping
         ? await parsePurchaseWorkbookWithMapping(file, nextMapping)
         : await parsePurchaseWorkbook(file)
-      const reviewed = await reviewPurchaseCandidates(candidates)
+      setReviewProgress({
+        stage: '소장목록 중복 검토 중',
+        processed: 0,
+        total: candidates.length,
+        message: 'ISBN 완전 일치와 유사 서지를 비교하고 있습니다.',
+      })
+      const reviewed = await reviewPurchaseCandidates(candidates, (processed, total) => {
+        setReviewProgress({
+          stage: '소장목록 중복 검토 중',
+          processed,
+          total,
+          message: `${processed.toLocaleString()} / ${total.toLocaleString()}건 검토`,
+        })
+      })
       setResults(reviewed)
       setSortState(undefined)
+      await loadReviewCovers(reviewed)
     } catch (uploadError) {
       setResults([])
       setSortState(undefined)
+      setCoverByIsbn({})
+      setReviewProgress(undefined)
       setError(
         uploadError instanceof Error
           ? uploadError.message
@@ -157,6 +309,12 @@ export function PurchaseReviewPage() {
     setCurrentFile(file)
     setProcessing(true)
     setError(undefined)
+    setReviewProgress({
+      stage: '엑셀 구조 확인 중',
+      processed: 0,
+      total: 0,
+      message: '자동 인식할 열과 미리보기 행을 찾고 있습니다.',
+    })
     try {
       const nextPreview = await readPurchaseWorkbookPreview(file)
       setPreview(nextPreview)
@@ -166,6 +324,8 @@ export function PurchaseReviewPage() {
     } catch (previewError) {
       setProcessing(false)
       setResults([])
+      setCoverByIsbn({})
+      setReviewProgress(undefined)
       setPreview(undefined)
       setError(
         previewError instanceof Error
@@ -182,6 +342,14 @@ export function PurchaseReviewPage() {
 
   const exactDuplicateCount = results.filter((row) => row.duplicateStatus === 'ISBN 중복').length
   const similarCount = results.filter((row) => row.duplicateStatus === '유사 중복 의심').length
+  const coverLoadedCount = results.filter((row) => coverByIsbn[normalizeIsbn(row.isbn)]?.status === 'loaded').length
+  const progressPercent = reviewProgress?.total
+    ? Math.round((reviewProgress.processed / reviewProgress.total) * 100)
+    : processing
+      ? 8
+      : reviewProgress
+        ? 100
+        : 0
   const sortDescription = sortState
     ? `${getSortColumnLabel(sortState.key)} ${sortState.direction === 'asc' ? '오름차순' : '내림차순'}`
     : '업로드 순서'
@@ -226,6 +394,43 @@ export function PurchaseReviewPage() {
     </th>
   )
 
+  const renderReviewCover = (row: PurchaseReviewResult) => {
+    const key = normalizeIsbn(row.isbn)
+    const cover = key ? coverByIsbn[key] : undefined
+
+    if (cover?.status === 'loaded') {
+      return (
+        <img
+          className="cover-thumb"
+          src={cover.coverUrl}
+          alt={`${cover.title} 표지`}
+          loading="lazy"
+          onError={() =>
+            setCoverByIsbn((current) => ({
+              ...current,
+              [key]: { status: 'error', message: '이미지 로딩 실패' },
+            }))
+          }
+        />
+      )
+    }
+
+    if (cover?.status === 'loading') return <span className="cover-placeholder">표지 조회</span>
+    if (!key) return <span className="cover-placeholder">ISBN 없음</span>
+
+    return (
+      <button
+        type="button"
+        className="cover-button"
+        onClick={() => void loadReviewCover(row)}
+        title={cover?.message ?? '알라딘에서 표지를 다시 조회합니다.'}
+      >
+        <BookOpen size={16} aria-hidden="true" />
+        {cover?.status === 'error' ? '재시도' : '표지'}
+      </button>
+    )
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -257,11 +462,13 @@ export function PurchaseReviewPage() {
       <section className="panel upload-panel">
         <label className="file-drop">
           <Upload size={22} aria-hidden="true" />
-          <strong>{processing ? '검토 중...' : '구입 후보 엑셀 업로드'}</strong>
+          <strong>{processing ? reviewProgress?.stage ?? '검토 중...' : '구입 후보 엑셀 업로드'}</strong>
           <span>
-            {fileName
-              ? `${fileName} 파일을 기준으로 검토합니다.`
-              : 'XLSX, XLS 파일을 지원합니다. 개인정보 포함 파일은 업로드하지 마세요.'}
+            {processing && reviewProgress
+              ? reviewProgress.message
+              : fileName
+                ? `${fileName} 파일을 기준으로 검토합니다.`
+                : 'XLSX, XLS 파일을 지원합니다. 개인정보 포함 파일은 업로드하지 마세요.'}
           </span>
           <input
             type="file"
@@ -272,6 +479,22 @@ export function PurchaseReviewPage() {
             }}
           />
         </label>
+        {reviewProgress ? (
+          <div className="review-progress" role="status" aria-live="polite">
+            <div className="progress-meta">
+              <strong>{reviewProgress.stage}</strong>
+              <span>{progressPercent}%</span>
+            </div>
+            <div className="progress-track" aria-hidden="true">
+              <div style={{ width: `${progressPercent}%` }} />
+            </div>
+            <p>
+              {reviewProgress.total > 0
+                ? `${reviewProgress.processed.toLocaleString()} / ${reviewProgress.total.toLocaleString()}건`
+                : reviewProgress.message}
+            </p>
+          </div>
+        ) : null}
         <div className="recognition-note split-note">
           <div>
             <strong>자동 인식 열</strong>
@@ -363,6 +586,11 @@ export function PurchaseReviewPage() {
           <strong>{similarCount.toLocaleString()}건</strong>
           <p>서명·저자·출판사 유사도 기준</p>
         </article>
+        <article className="metric-card">
+          <span>표지 표시</span>
+          <strong>{coverLoadedCount.toLocaleString()}건</strong>
+          <p>알라딘 ISBN 조회 기준</p>
+        </article>
       </section>
 
       <section className="panel table-panel">
@@ -388,13 +616,17 @@ export function PurchaseReviewPage() {
         <div className="table-scroll">
           <table className="purchase-review-table">
             <thead>
-              <tr>{sortableColumns.map(({ key, label }) => renderSortableHeader(key, label))}</tr>
+              <tr>
+                <th>표지</th>
+                {sortableColumns.map(({ key, label }) => renderSortableHeader(key, label))}
+              </tr>
             </thead>
             <tbody>
               {sortedResults.map((row) => {
                 const primaryMatch = getPrimaryMatch(row)
                 return (
                   <tr key={row.id}>
+                    <td className="cover-cell">{renderReviewCover(row)}</td>
                     <td>{row.title}</td>
                     <td>{row.author}</td>
                     <td>{row.publisher}</td>
@@ -434,7 +666,7 @@ export function PurchaseReviewPage() {
               })}
               {results.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="empty-cell">
+                  <td colSpan={12} className="empty-cell">
                     <FileSpreadsheet size={18} aria-hidden="true" />
                     업로드한 구입 후보가 없습니다.
                   </td>

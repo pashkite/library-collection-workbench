@@ -117,7 +117,9 @@ export function HoldingsSearchPage() {
     setFilters((current) => ({ ...current, [key]: value }))
   }
 
-  const hasActiveFilter = Object.values(filters).some(Boolean)
+  const hasActiveFilter = (Object.keys(filters) as Array<keyof HoldingSearchFilters>).some(
+    (key) => filters[key] !== initialFilters[key],
+  )
 
   const resetFilters = () => {
     setPage(1)
