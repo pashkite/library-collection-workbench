@@ -51,23 +51,29 @@ export async function downloadHoldingsExcel(rows: StoredBookHolding[], fileName:
 export async function downloadReviewExcel(rows: PurchaseReviewResult[], fileName: string) {
   const XLSX = await loadXlsx()
   const worksheet = XLSX.utils.json_to_sheet(
-    rows.map((row) => ({
-      도서명: row.title,
-      저자: row.author,
-      출판사: row.publisher,
-      ISBN: row.isbn,
-      가격: row.price ?? '',
-      중복판정: row.duplicateStatus,
-      검토결과: row.reviewResult,
-      '기존 소장 도서명': row.matchedHolding?.title ?? '',
-      '기존 소장 저자': row.matchedHolding?.author ?? '',
-      '기존 소장 출판사': row.matchedHolding?.publisher ?? '',
-      '기존 소장 ISBN': row.matchedHolding?.isbn ?? '',
-      '유사 소장자료': row.similarHoldings
-        ?.map((holding) => `${holding.title} / ${holding.author} / ${holding.publisher}`)
-        .join('\n') ?? '',
-      비고: row.note,
-    })),
+    rows.map((row) => {
+      const primaryMatch = row.matchedHolding ?? row.similarHoldings?.[0]
+
+      return {
+        도서명: row.title,
+        저자: row.author,
+        출판사: row.publisher,
+        ISBN: row.isbn,
+        가격: row.price ?? '',
+        중복판정: row.duplicateStatus,
+        검토결과: row.reviewResult,
+        '기존/유사 소장 도서명': primaryMatch?.title ?? '',
+        '기존/유사 소장 저자': primaryMatch?.author ?? '',
+        '기존/유사 소장 출판사': primaryMatch?.publisher ?? '',
+        '기존/유사 소장 출판연도': primaryMatch?.publicationYear ?? '',
+        '기존/유사 소장 KDC': primaryMatch?.kdc ?? '',
+        '기존/유사 소장 ISBN': primaryMatch?.isbn ?? '',
+        '유사 소장자료': row.similarHoldings
+          ?.map((holding) => `${holding.title} / ${holding.author} / ${holding.publisher}`)
+          .join('\n') ?? '',
+        비고: row.note,
+      }
+    }),
   )
   const workbook = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(workbook, worksheet, '구입후보검토')

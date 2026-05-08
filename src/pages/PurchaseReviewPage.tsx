@@ -1,5 +1,5 @@
 import { Download, FileSpreadsheet, RefreshCw, Upload } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageHeader } from '../components/PageHeader'
 import { downloadReviewExcel } from '../lib/excel'
@@ -11,6 +11,25 @@ import {
 } from '../lib/purchaseReview'
 import type { PurchaseColumnMapping, PurchaseReviewResult, WorkbookPreview } from '../types/library'
 
+type SortDirection = 'asc' | 'desc'
+type SortKey =
+  | 'title'
+  | 'author'
+  | 'publisher'
+  | 'isbn'
+  | 'price'
+  | 'duplicateStatus'
+  | 'reviewResult'
+  | 'matchedTitle'
+  | 'matchedPublicationYear'
+  | 'matchedKdc'
+  | 'note'
+
+interface SortState {
+  key: SortKey
+  direction: SortDirection
+}
+
 const mappingLabels: Array<{ key: keyof PurchaseColumnMapping; label: string; required?: boolean }> = [
   { key: 'title', label: '도서명', required: true },
   { key: 'author', label: '저자' },
@@ -19,8 +38,80 @@ const mappingLabels: Array<{ key: keyof PurchaseColumnMapping; label: string; re
   { key: 'price', label: '가격' },
 ]
 
+const sortableColumns: Array<{ key: SortKey; label: string }> = [
+  { key: 'title', label: '도서명' },
+  { key: 'author', label: '저자' },
+  { key: 'publisher', label: '출판사' },
+  { key: 'isbn', label: 'ISBN' },
+  { key: 'price', label: '가격' },
+  { key: 'duplicateStatus', label: '중복판정' },
+  { key: 'reviewResult', label: '검토결과' },
+  { key: 'matchedTitle', label: '기존/유사 소장자료' },
+  { key: 'matchedPublicationYear', label: '출판연도' },
+  { key: 'matchedKdc', label: 'KDC' },
+  { key: 'note', label: '비고' },
+]
+
+const textCollator = new Intl.Collator('ko-KR', {
+  numeric: true,
+  sensitivity: 'base',
+})
+
+function getPrimaryMatch(row: PurchaseReviewResult) {
+  return row.matchedHolding ?? row.similarHoldings?.[0]
+}
+
+function getStatusRank(value: PurchaseReviewResult['duplicateStatus']) {
+  if (value === 'ISBN 중복') return 0
+  if (value === '유사 중복 의심') return 1
+  return 2
+}
+
+function getReviewRank(value: PurchaseReviewResult['reviewResult']) {
+  if (value === '기존 소장 확인') return 0
+  if (value === '유사 자료 확인 필요') return 1
+  return 2
+}
+
+function getSortValue(row: PurchaseReviewResult, key: SortKey): string | number {
+  const primaryMatch = getPrimaryMatch(row)
+
+  switch (key) {
+    case 'price':
+      return row.price ?? ''
+    case 'duplicateStatus':
+      return getStatusRank(row.duplicateStatus)
+    case 'reviewResult':
+      return getReviewRank(row.reviewResult)
+    case 'matchedTitle':
+      return primaryMatch?.title ?? ''
+    case 'matchedPublicationYear':
+      return primaryMatch?.publicationYear.match(/\d{4}/)?.[0] ?? ''
+    case 'matchedKdc':
+      return primaryMatch?.kdc ?? ''
+    default:
+      return row[key] ?? ''
+  }
+}
+
+function compareRowsByKey(a: PurchaseReviewResult, b: PurchaseReviewResult, key: SortKey) {
+  const aValue = getSortValue(a, key)
+  const bValue = getSortValue(b, key)
+
+  if (typeof aValue === 'number' && typeof bValue === 'number') {
+    return aValue - bValue
+  }
+
+  const aText = String(aValue)
+  const bText = String(bValue)
+  if (!aText && bText) return 1
+  if (aText && !bText) return -1
+  return textCollator.compare(aText, bText)
+}
+
 export function PurchaseReviewPage() {
   const [results, setResults] = useState<PurchaseReviewResult[]>([])
+  const [sortState, setSortState] = useState<SortState>()
   const [processing, setProcessing] = useState(false)
   const [error, setError] = useState<string>()
   const [fileName, setFileName] = useState<string>()
@@ -85,6 +176,46 @@ export function PurchaseReviewPage() {
 
   const exactDuplicateCount = results.filter((row) => row.duplicateStatus === 'ISBN 중복').length
   const similarCount = results.filter((row) => row.duplicateStatus === '유사 중복 의심').length
+  const sortedResults = useMemo(() => {
+    if (!sortState) return results
+
+    const direction = sortState.direction === 'asc' ? 1 : -1
+    return [...results].sort((a, b) => compareRowsByKey(a, b, sortState.key) * direction)
+  }, [results, sortState])
+
+  const updateSort = (key: SortKey) => {
+    setSortState((current) =>
+      current?.key === key
+        ? { key, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+        : { key, direction: 'asc' },
+    )
+  }
+
+  const getSortAria = (key: SortKey): 'none' | 'ascending' | 'descending' => {
+    if (sortState?.key !== key) return 'none'
+    return sortState.direction === 'asc' ? 'ascending' : 'descending'
+  }
+
+  const getNextSortLabel = (key: SortKey, label: string) => {
+    const nextDirection = sortState?.key === key && sortState.direction === 'asc' ? '내림차순' : '오름차순'
+    return `${label} ${nextDirection} 정렬`
+  }
+
+  const renderSortableHeader = (key: SortKey, label: string) => (
+    <th key={key} className="sortable-header" aria-sort={getSortAria(key)}>
+      <button
+        type="button"
+        className="sort-button"
+        onClick={() => updateSort(key)}
+        aria-label={getNextSortLabel(key, label)}
+      >
+        <span>{label}</span>
+        <span className="sort-indicator" aria-hidden="true">
+          {sortState?.key === key ? (sortState.direction === 'asc' ? '▲' : '▼') : '↕'}
+        </span>
+      </button>
+    </th>
+  )
 
   return (
     <div className="page-stack">
@@ -98,7 +229,7 @@ export function PurchaseReviewPage() {
             disabled={results.length === 0}
             onClick={() =>
               void downloadReviewExcel(
-                results,
+                sortedResults,
                 `구입후보_검토결과_${new Date().toISOString().slice(0, 10)}.xlsx`,
               )
             }
@@ -223,23 +354,13 @@ export function PurchaseReviewPage() {
       <section className="panel table-panel">
         <p className="table-hint">중복판정은 보조 자료입니다. 유사 중복 의심 건은 담당자가 서지와 판사항을 확인하세요.</p>
         <div className="table-scroll">
-          <table>
+          <table className="purchase-review-table">
             <thead>
-              <tr>
-                <th>도서명</th>
-                <th>저자</th>
-                <th>출판사</th>
-                <th>ISBN</th>
-                <th>가격</th>
-                <th>중복판정</th>
-                <th>검토결과</th>
-                <th>기존/유사 소장자료</th>
-                <th>비고</th>
-              </tr>
+              <tr>{sortableColumns.map(({ key, label }) => renderSortableHeader(key, label))}</tr>
             </thead>
             <tbody>
-              {results.map((row) => {
-                const primaryMatch = row.matchedHolding ?? row.similarHoldings?.[0]
+              {sortedResults.map((row) => {
+                const primaryMatch = getPrimaryMatch(row)
                 return (
                   <tr key={row.id}>
                     <td>{row.title}</td>
@@ -273,13 +394,15 @@ export function PurchaseReviewPage() {
                         ''
                       )}
                     </td>
+                    <td>{primaryMatch?.publicationYear ?? ''}</td>
+                    <td>{primaryMatch?.kdc ?? ''}</td>
                     <td>{row.note}</td>
                   </tr>
                 )
               })}
               {results.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="empty-cell">
+                  <td colSpan={11} className="empty-cell">
                     <FileSpreadsheet size={18} aria-hidden="true" />
                     업로드한 구입 후보가 없습니다.
                   </td>
