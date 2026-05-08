@@ -131,8 +131,8 @@ export function PurchaseReviewPage() {
           <div>
             <strong>자동 인식 열</strong>
             <span>
-              도서명/서명/제목/자료명, 저자/저자명/지은이, 출판사/발행처/출판처,
-              ISBN/국제표준도서번호, 가격/정가를 먼저 인식하고 필요하면 직접 바꿀 수 있습니다.
+              알라딘 장바구니/마이리스트의 상품명, ISBN13, 저자/아티스트, 출판사/제작사를 포함해
+              도서명·저자·출판사·ISBN·가격 열을 먼저 인식하고 필요하면 직접 바꿀 수 있습니다.
             </span>
           </div>
           <a className="secondary-button" href={`${import.meta.env.BASE_URL}sample/sample_purchase_candidates.xlsx`}>
