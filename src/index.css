@@ -910,6 +910,37 @@ tbody tr:hover {
   line-height: 1.5;
 }
 
+.contact-panel,
+.contact-form {
+  display: grid;
+  gap: 14px;
+}
+
+.contact-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.8fr) minmax(180px, 0.4fr);
+  gap: 12px;
+}
+
+.contact-form textarea {
+  min-height: 132px;
+}
+
+.contact-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.contact-actions span {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
 .help-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1531,6 +1562,7 @@ tbody tr:hover {
   .quick-grid,
   .settings-grid,
   .help-list,
+  .contact-grid,
   .search-grid,
   .search-grid.extended,
   .aladin-search-grid,
@@ -1558,5 +1590,14 @@ tbody tr:hover {
 
   main {
     padding: 18px;
+  }
+
+  .contact-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .contact-actions .primary-button {
+    width: 100%;
   }
 }

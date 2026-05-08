@@ -1,4 +1,9 @@
+import type { FormEvent } from 'react'
+import { useState } from 'react'
+import { Mail, Send } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
+
+const CONTACT_EMAIL = 'jaeyoun310@gmail.com'
 
 const sections = [
   {
@@ -44,9 +49,89 @@ const sections = [
 ]
 
 export function HelpPage() {
+  const [senderName, setSenderName] = useState('')
+  const [feedbackType, setFeedbackType] = useState('문의')
+  const [message, setMessage] = useState('')
+  const [statusMessage, setStatusMessage] = useState<string>()
+
+  const canSubmit = senderName.trim().length > 0 && message.trim().length > 0
+
+  const sendFeedback = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!canSubmit) return
+
+    const trimmedName = senderName.trim()
+    const trimmedMessage = message.trim()
+    const subject = `[장서 업무 보조] ${feedbackType} - ${trimmedName}`
+    const body = [
+      `보내는 사람: ${trimmedName}`,
+      `구분: ${feedbackType}`,
+      '',
+      trimmedMessage,
+      '',
+      `작성 페이지: ${window.location.href}`,
+      `작성 시각: ${new Intl.DateTimeFormat('ko-KR', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      }).format(new Date())}`,
+    ].join('\n')
+
+    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    setStatusMessage('메일 앱을 열었습니다. 전송 전 내용을 확인해 주세요.')
+  }
+
   return (
     <div className="page-stack">
       <PageHeader title="도움말" description="도서관 장서 업무 보조 웹의 기본 사용 방법과 주의사항입니다." />
+      <section className="panel contact-panel">
+        <div className="section-title">
+          <Mail size={18} aria-hidden="true" />
+          <h2>문의/건의 보내기</h2>
+        </div>
+        <p className="muted">별명이나 이름과 내용을 적으면 {CONTACT_EMAIL} 앞으로 메일이 작성됩니다.</p>
+        <form className="contact-form" onSubmit={sendFeedback}>
+          <div className="contact-grid">
+            <label className="stacked-label">
+              별명 또는 이름
+              <input
+                value={senderName}
+                placeholder="예: 자료실 담당자"
+                required
+                onChange={(event) => setSenderName(event.target.value)}
+              />
+            </label>
+            <label className="stacked-label">
+              구분
+              <select value={feedbackType} onChange={(event) => setFeedbackType(event.target.value)}>
+                <option value="문의">문의</option>
+                <option value="건의">건의</option>
+                <option value="오류 제보">오류 제보</option>
+              </select>
+            </label>
+          </div>
+          <label className="stacked-label">
+            내용
+            <textarea
+              value={message}
+              placeholder="궁금한 점이나 개선했으면 하는 점을 적어주세요."
+              required
+              onChange={(event) => setMessage(event.target.value)}
+            />
+          </label>
+          <div className="contact-actions">
+            <span>받는 사람: {CONTACT_EMAIL}</span>
+            <button type="submit" className="primary-button" disabled={!canSubmit}>
+              <Send size={16} aria-hidden="true" />
+              문의 보내기
+            </button>
+          </div>
+        </form>
+        {statusMessage ? (
+          <p className="status-message" aria-live="polite">
+            {statusMessage}
+          </p>
+        ) : null}
+      </section>
       <section className="help-list">
         {sections.map((section) => (
           <article className="panel" key={section.title}>
