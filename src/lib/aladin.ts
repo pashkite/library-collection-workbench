@@ -3,7 +3,7 @@ import { normalizeIsbn } from '../utils/normalize'
 import { getAladinKey } from './settingsStorage'
 
 const API_URL = 'https://www.aladin.co.kr/ttb/api/ItemLookUp.aspx'
-const CACHE_KEY = 'aladin-detail-cache-v1'
+const CACHE_KEY = 'aladin-detail-cache-v2'
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
 interface AladinRawItem {
@@ -56,7 +56,7 @@ function normalizeRawItem(item: AladinRawItem): AladinBookDetail {
     publisher: item.publisher ?? '',
     pubDate: item.pubDate,
     priceStandard: item.priceStandard,
-    coverUrl: item.cover,
+    coverUrl: normalizeCoverUrl(item.cover),
     description: item.description || item.subInfo?.story,
     tableOfContents: item.subInfo?.toc,
     salesPoint: item.salesPoint,
@@ -67,6 +67,13 @@ function normalizeRawItem(item: AladinRawItem): AladinBookDetail {
     customerReviewRank: item.customerReviewRank,
     itemPage: item.subInfo?.itemPage,
   }
+}
+
+function normalizeCoverUrl(value?: string) {
+  const coverUrl = value?.trim()
+  if (!coverUrl) return undefined
+  if (coverUrl.startsWith('//')) return `https:${coverUrl}`
+  return coverUrl.replace(/^http:\/\/image\.aladin\.co\.kr\//i, 'https://image.aladin.co.kr/')
 }
 
 function requestJsonp(url: URL): Promise<AladinRawResponse> {
@@ -116,7 +123,7 @@ export async function lookupAladinDetail(isbn: string, forceRefresh = false) {
   const cache = readCache()
   const cached = cache[normalizedIsbn]
   const cachedAt = cached?.cachedAt ? Date.parse(cached.cachedAt) : 0
-  if (!forceRefresh && cached && Date.now() - cachedAt < CACHE_TTL_MS) return cached
+  if (!forceRefresh && cached?.coverUrl && Date.now() - cachedAt < CACHE_TTL_MS) return cached
 
   const url = new URL(API_URL)
   url.searchParams.set('ttbkey', key)

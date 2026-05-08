@@ -202,7 +202,20 @@ export function HoldingsSearchPage() {
     const key = normalizeIsbn(row.isbn)
     const cover = key ? coverByIsbn[key] : undefined
     if (cover?.status === 'loaded') {
-      return <img className="cover-thumb" src={cover.coverUrl} alt={`${cover.title} 표지`} loading="lazy" />
+      return (
+        <img
+          className="cover-thumb"
+          src={cover.coverUrl}
+          alt={`${cover.title} 표지`}
+          loading="lazy"
+          onError={() =>
+            setCoverByIsbn((current) => ({
+              ...current,
+              [key]: { status: 'error', message: '이미지 로딩 실패' },
+            }))
+          }
+        />
+      )
     }
     if (cover?.status === 'loading') {
       return <span className="cover-placeholder">조회 중</span>
@@ -213,7 +226,7 @@ export function HoldingsSearchPage() {
     return (
       <button type="button" className="cover-button" onClick={() => void loadCover(row)} title={cover?.message}>
         <BookOpen size={16} aria-hidden="true" />
-        표지
+        {cover?.status === 'error' ? '재시도' : '표지'}
       </button>
     )
   }
