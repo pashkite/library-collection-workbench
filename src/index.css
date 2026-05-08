@@ -910,22 +910,26 @@ tbody tr:hover {
   line-height: 1.5;
 }
 
+/* 문의/건의 패널과 폼은 같은 간격 규칙을 써서 입력 흐름이 한눈에 보이게 합니다. */
 .contact-panel,
 .contact-form {
   display: grid;
   gap: 14px;
 }
 
+/* 이름 입력칸을 넓게, 구분 선택칸을 짧게 두어 실제 작성 순서를 자연스럽게 만듭니다. */
 .contact-grid {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(180px, 0.4fr);
   gap: 12px;
 }
 
+/* 문의 내용은 긴 문장도 바로 확인할 수 있도록 기본 높이를 일반 입력칸보다 크게 둡니다. */
 .contact-form textarea {
   min-height: 132px;
 }
 
+/* 받는 사람 안내와 발송 버튼을 한 줄에 두되, 좁아지면 자연스럽게 줄바꿈됩니다. */
 .contact-actions {
   display: flex;
   justify-content: space-between;
@@ -934,6 +938,7 @@ tbody tr:hover {
   flex-wrap: wrap;
 }
 
+/* 메일 주소가 긴 화면에서도 카드 밖으로 넘치지 않도록 어디서든 줄바꿈을 허용합니다. */
 .contact-actions span {
   min-width: 0;
   color: var(--muted);
@@ -1592,6 +1597,7 @@ tbody tr:hover {
     padding: 18px;
   }
 
+  /* 모바일에서는 받는 사람 안내와 버튼을 세로로 쌓아 터치하기 쉽게 만듭니다. */
   .contact-actions {
     align-items: stretch;
     flex-direction: column;

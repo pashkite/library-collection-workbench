@@ -3,8 +3,10 @@ import { useState } from 'react'
 import { Mail, Send } from 'lucide-react'
 import { PageHeader } from '../components/PageHeader'
 
+// 문의/건의를 받을 관리자 메일 주소입니다.
 const CONTACT_EMAIL = 'jaeyoun310@gmail.com'
 
+// 도움말 화면 하단에 반복 렌더링할 안내 카드 목록입니다.
 const sections = [
   {
     title: '처음 사용하는 방법',
@@ -49,20 +51,26 @@ const sections = [
 ]
 
 export function HelpPage() {
+  // 사용자가 입력한 문의자 이름, 문의 구분, 본문 내용을 폼 상태로 관리합니다.
   const [senderName, setSenderName] = useState('')
   const [feedbackType, setFeedbackType] = useState('문의')
   const [message, setMessage] = useState('')
+  // 메일 앱을 연 뒤 사용자에게 다음 행동을 알려주는 안내 문구입니다.
   const [statusMessage, setStatusMessage] = useState<string>()
 
+  // 이름과 내용이 모두 있어야 문의 보내기 버튼을 활성화합니다.
   const canSubmit = senderName.trim().length > 0 && message.trim().length > 0
 
+  // 정적 웹앱에서도 동작하도록 mailto 링크를 만들어 사용자의 기본 메일 앱을 엽니다.
   const sendFeedback = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!canSubmit) return
 
+    // 앞뒤 공백을 제거한 값으로 메일 제목과 본문을 구성합니다.
     const trimmedName = senderName.trim()
     const trimmedMessage = message.trim()
     const subject = `[장서 업무 보조] ${feedbackType} - ${trimmedName}`
+    // 문의 내용뿐 아니라 작성 페이지와 시간을 함께 넣어 재현과 확인이 쉽도록 합니다.
     const body = [
       `보내는 사람: ${trimmedName}`,
       `구분: ${feedbackType}`,
@@ -76,6 +84,7 @@ export function HelpPage() {
       }).format(new Date())}`,
     ].join('\n')
 
+    // 받는 사람, 제목, 본문을 URL 인코딩해 메일 작성창에 안전하게 전달합니다.
     window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
     setStatusMessage('메일 앱을 열었습니다. 전송 전 내용을 확인해 주세요.')
   }
@@ -83,6 +92,7 @@ export function HelpPage() {
   return (
     <div className="page-stack">
       <PageHeader title="도움말" description="도서관 장서 업무 보조 웹의 기본 사용 방법과 주의사항입니다." />
+      {/* 사용자가 별도 회원가입 없이 바로 문의/건의를 작성할 수 있는 메일 연결 폼입니다. */}
       <section className="panel contact-panel">
         <div className="section-title">
           <Mail size={18} aria-hidden="true" />
@@ -126,12 +136,14 @@ export function HelpPage() {
             </button>
           </div>
         </form>
+        {/* 메일 앱 호출 후에도 화면에 남아 사용자가 전송 확인을 놓치지 않게 합니다. */}
         {statusMessage ? (
           <p className="status-message" aria-live="polite">
             {statusMessage}
           </p>
         ) : null}
       </section>
+      {/* 기존 도움말 문구는 카드 목록으로 유지해 필요한 항목을 빠르게 훑을 수 있게 합니다. */}
       <section className="help-list">
         {sections.map((section) => (
           <article className="panel" key={section.title}>
