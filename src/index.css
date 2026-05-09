@@ -1395,6 +1395,12 @@ tbody tr:hover {
   border-radius: var(--radius);
 }
 
+.status-message.is-error {
+  color: var(--danger);
+  background: var(--danger-soft);
+  border-color: #ffd4d0;
+}
+
 @media (max-width: 760px) {
   .loading-shell {
     align-items: start;

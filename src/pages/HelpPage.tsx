@@ -6,6 +6,12 @@ import { PageHeader } from '../components/PageHeader'
 // 문의/건의를 받을 관리자 메일 주소입니다.
 const CONTACT_EMAIL = 'jaeyoun310@gmail.com'
 
+// FormSubmit AJAX 엔드포인트입니다. 메일 앱을 열지 않고 서비스가 관리자 메일로 내용을 전달합니다.
+const CONTACT_ENDPOINT = `https://formsubmit.co/ajax/${CONTACT_EMAIL}`
+
+// 전송 버튼과 안내 메시지를 같은 기준으로 제어하기 위한 제출 상태입니다.
+type SubmissionState = 'idle' | 'sending' | 'sent' | 'error'
+
 // 도움말 화면 하단에 반복 렌더링할 안내 카드 목록입니다.
 const sections = [
   {
@@ -55,21 +61,28 @@ export function HelpPage() {
   const [senderName, setSenderName] = useState('')
   const [feedbackType, setFeedbackType] = useState('문의')
   const [message, setMessage] = useState('')
-  // 메일 앱을 연 뒤 사용자에게 다음 행동을 알려주는 안내 문구입니다.
+  // 전송 결과를 사용자에게 알려주는 안내 문구입니다.
   const [statusMessage, setStatusMessage] = useState<string>()
+  const [submissionState, setSubmissionState] = useState<SubmissionState>('idle')
 
-  // 이름과 내용이 모두 있어야 문의 보내기 버튼을 활성화합니다.
+  // 이름과 내용이 모두 있고 전송 중이 아닐 때 문의 보내기 버튼을 활성화합니다.
   const canSubmit = senderName.trim().length > 0 && message.trim().length > 0
+  const isSending = submissionState === 'sending'
+  const statusClassName = `status-message${submissionState === 'error' ? ' is-error' : ''}`
 
-  // 정적 웹앱에서도 동작하도록 mailto 링크를 만들어 사용자의 기본 메일 앱을 엽니다.
-  const sendFeedback = (event: FormEvent<HTMLFormElement>) => {
+  // 정적 웹앱에서도 동작하도록 폼 메일 서비스에 AJAX로 제출합니다.
+  const sendFeedback = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!canSubmit) return
+    if (!canSubmit || isSending) return
 
     // 앞뒤 공백을 제거한 값으로 메일 제목과 본문을 구성합니다.
     const trimmedName = senderName.trim()
     const trimmedMessage = message.trim()
     const subject = `[장서 업무 보조] ${feedbackType} - ${trimmedName}`
+    const submittedAt = new Intl.DateTimeFormat('ko-KR', {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(new Date())
     // 문의 내용뿐 아니라 작성 페이지와 시간을 함께 넣어 재현과 확인이 쉽도록 합니다.
     const body = [
       `보내는 사람: ${trimmedName}`,
@@ -78,15 +91,45 @@ export function HelpPage() {
       trimmedMessage,
       '',
       `작성 페이지: ${window.location.href}`,
-      `작성 시각: ${new Intl.DateTimeFormat('ko-KR', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      }).format(new Date())}`,
+      `작성 시각: ${submittedAt}`,
     ].join('\n')
 
-    // 받는 사람, 제목, 본문을 URL 인코딩해 메일 작성창에 안전하게 전달합니다.
-    window.location.href = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
-    setStatusMessage('메일 앱을 열었습니다. 전송 전 내용을 확인해 주세요.')
+    setSubmissionState('sending')
+    setStatusMessage('문의 내용을 전송하고 있습니다.')
+
+    try {
+      // FormSubmit이 메일 본문으로 정리할 수 있도록 한글 필드명과 관리용 옵션을 함께 보냅니다.
+      const response = await fetch(CONTACT_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          _subject: subject,
+          _template: 'table',
+          _captcha: 'false',
+          이름: trimmedName,
+          구분: feedbackType,
+          내용: trimmedMessage,
+          '작성 페이지': window.location.href,
+          '작성 시각': submittedAt,
+          message: body,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`문의 전송 실패: ${response.status}`)
+      }
+
+      setSubmissionState('sent')
+      setStatusMessage('문의가 접수되었습니다. 확인 후 필요한 내용을 반영하겠습니다.')
+      setMessage('')
+    } catch (error) {
+      console.error(error)
+      setSubmissionState('error')
+      setStatusMessage('전송에 실패했습니다. 잠시 후 다시 시도해 주세요.')
+    }
   }
 
   return (
@@ -98,7 +141,7 @@ export function HelpPage() {
           <Mail size={18} aria-hidden="true" />
           <h2>문의/건의 보내기</h2>
         </div>
-        <p className="muted">별명이나 이름과 내용을 적으면 {CONTACT_EMAIL} 앞으로 메일이 작성됩니다.</p>
+        <p className="muted">별명이나 이름과 내용을 적으면 메일 앱을 열지 않고 바로 관리자에게 전달됩니다.</p>
         <form className="contact-form" onSubmit={sendFeedback}>
           <div className="contact-grid">
             <label className="stacked-label">
@@ -130,15 +173,15 @@ export function HelpPage() {
           </label>
           <div className="contact-actions">
             <span>받는 사람: {CONTACT_EMAIL}</span>
-            <button type="submit" className="primary-button" disabled={!canSubmit}>
+            <button type="submit" className="primary-button" disabled={!canSubmit || isSending}>
               <Send size={16} aria-hidden="true" />
-              문의 보내기
+              {isSending ? '전송 중' : '문의 보내기'}
             </button>
           </div>
         </form>
-        {/* 메일 앱 호출 후에도 화면에 남아 사용자가 전송 확인을 놓치지 않게 합니다. */}
+        {/* 전송 결과를 화면에 남겨 사용자가 접수 여부를 바로 확인할 수 있게 합니다. */}
         {statusMessage ? (
-          <p className="status-message" aria-live="polite">
+          <p className={statusClassName} aria-live="polite">
             {statusMessage}
           </p>
         ) : null}
