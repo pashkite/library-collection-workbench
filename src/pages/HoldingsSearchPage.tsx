@@ -1,13 +1,13 @@
-import { BookOpen, Download, Image as ImageIcon, RotateCcw, Search } from 'lucide-react'
+import { Download, Image as ImageIcon, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { BookCover } from '../components/BookCover'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageHeader } from '../components/PageHeader'
 import { useAppData } from '../lib/AppDataContext'
-import { getCachedAladinDetail, lookupAladinDetail } from '../lib/aladin'
 import { downloadHoldingsExcel } from '../lib/excel'
 import { getAllHoldings, getHoldingFacetOptions, getMaterialTypeLabel, searchHoldings } from '../lib/libraryDb'
+import { useBookCovers } from '../lib/useBookCovers'
 import type { HoldingSearchFilters, HoldingSearchResult, StoredBookHolding } from '../types/library'
-import { normalizeIsbn } from '../utils/normalize'
 
 const initialFilters: HoldingSearchFilters = {
   title: '',
@@ -17,12 +17,6 @@ const initialFilters: HoldingSearchFilters = {
   materialType: 'all',
   shelfName: '',
 }
-
-type CoverState =
-  | { status: 'loading' }
-  | { status: 'loaded'; coverUrl: string; title: string }
-  | { status: 'missing'; message: string }
-  | { status: 'error'; message: string }
 
 export function HoldingsSearchPage() {
   const { data } = useAppData()
@@ -38,9 +32,6 @@ export function HoldingsSearchPage() {
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [error, setError] = useState<string>()
-  const [coverLoading, setCoverLoading] = useState(false)
-  const [coverMessage, setCoverMessage] = useState<string>()
-  const [coverByIsbn, setCoverByIsbn] = useState<Record<string, CoverState>>({})
   const [facetOptions, setFacetOptions] = useState<{
     shelfNames: string[]
     bookCount: number
@@ -49,6 +40,14 @@ export function HoldingsSearchPage() {
   }>({ shelfNames: [], bookCount: 0, nonbookCount: 0, missingShelfCount: 0 })
 
   const totalPages = Math.max(1, Math.ceil(result.total / pageSize))
+  const {
+    coverLoading,
+    coverMessage,
+    getCover,
+    loadCover,
+    loadVisibleCovers,
+    markCoverError,
+  } = useBookCovers(result.rows, { autoLoadLimit: Math.min(pageSize, 100) })
   const rangeLabel = useMemo(() => {
     if (result.total === 0) return '0건'
     const start = (page - 1) * pageSize + 1
@@ -93,21 +92,6 @@ export function HoldingsSearchPage() {
       canceled = true
     }
   }, [data.totalCount])
-
-  useEffect(() => {
-    const cachedCovers = Object.fromEntries(
-      result.rows
-        .map((row) => {
-          const key = normalizeIsbn(row.isbn)
-          const cached = key ? getCachedAladinDetail(key) : undefined
-          return cached?.coverUrl ? [key, { status: 'loaded', coverUrl: cached.coverUrl, title: cached.title }] : undefined
-        })
-        .filter(Boolean) as Array<[string, CoverState]>,
-    )
-    if (Object.keys(cachedCovers).length > 0) {
-      setCoverByIsbn((current) => ({ ...current, ...cachedCovers }))
-    }
-  }, [result.rows])
 
   const updateFilter = <Key extends keyof HoldingSearchFilters>(
     key: Key,
@@ -154,82 +138,14 @@ export function HoldingsSearchPage() {
     }
   }
 
-  const loadCover = async (row: StoredBookHolding) => {
-    const key = normalizeIsbn(row.isbn)
-    if (!key) return
-    setCoverByIsbn((current) => ({ ...current, [key]: { status: 'loading' } }))
-    try {
-      const detail = await lookupAladinDetail(key)
-      setCoverByIsbn((current) => ({
-        ...current,
-        [key]: detail.coverUrl
-          ? { status: 'loaded', coverUrl: detail.coverUrl, title: detail.title || row.title }
-          : { status: 'missing', message: '표지 없음' },
-      }))
-    } catch (coverError) {
-      setCoverByIsbn((current) => ({
-        ...current,
-        [key]: {
-          status: 'error',
-          message: coverError instanceof Error ? coverError.message : '표지 조회 실패',
-        },
-      }))
-    }
-  }
-
-  const loadVisibleCovers = async () => {
-    const targets = result.rows
-      .filter((row) => normalizeIsbn(row.isbn))
-      .filter((row) => coverByIsbn[normalizeIsbn(row.isbn)]?.status !== 'loaded')
-    if (targets.length === 0) {
-      setCoverMessage('현재 페이지에서 새로 불러올 표지가 없습니다.')
-      return
-    }
-
-    setCoverLoading(true)
-    setCoverMessage(undefined)
-    try {
-      const batchSize = 6
-      for (let index = 0; index < targets.length; index += batchSize) {
-        const batch = targets.slice(index, index + batchSize)
-        await Promise.allSettled(batch.map((row) => loadCover(row)))
-      }
-      setCoverMessage(`현재 페이지 표지 ${targets.length.toLocaleString()}건을 확인했습니다.`)
-    } finally {
-      setCoverLoading(false)
-    }
-  }
-
   const renderCover = (row: StoredBookHolding) => {
-    const key = normalizeIsbn(row.isbn)
-    const cover = key ? coverByIsbn[key] : undefined
-    if (cover?.status === 'loaded') {
-      return (
-        <img
-          className="cover-thumb"
-          src={cover.coverUrl}
-          alt={`${cover.title} 표지`}
-          loading="lazy"
-          onError={() =>
-            setCoverByIsbn((current) => ({
-              ...current,
-              [key]: { status: 'error', message: '이미지 로딩 실패' },
-            }))
-          }
-        />
-      )
-    }
-    if (cover?.status === 'loading') {
-      return <span className="cover-placeholder">조회 중</span>
-    }
-    if (!key) {
-      return <span className="cover-placeholder">ISBN 없음</span>
-    }
     return (
-      <button type="button" className="cover-button" onClick={() => void loadCover(row)} title={cover?.message}>
-        <BookOpen size={16} aria-hidden="true" />
-        {cover?.status === 'error' ? '재시도' : '표지'}
-      </button>
+      <BookCover
+        book={row}
+        cover={getCover(row)}
+        onLoad={(book) => void loadCover(book)}
+        onImageError={(book) => markCoverError(book)}
+      />
     )
   }
 

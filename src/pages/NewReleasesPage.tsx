@@ -1,11 +1,13 @@
-import { Download, RotateCcw, Search } from 'lucide-react'
+import { Download, Image as ImageIcon, RotateCcw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { BookCover } from '../components/BookCover'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageHeader } from '../components/PageHeader'
 import { downloadHoldingsExcel } from '../lib/excel'
 import { getHoldingFacetOptions, getMaterialTypeLabel, searchNewReleases } from '../lib/libraryDb'
 import { useAppData } from '../lib/AppDataContext'
-import type { NewReleaseFilters, NewReleaseSearchResult } from '../types/library'
+import { useBookCovers } from '../lib/useBookCovers'
+import type { NewReleaseFilters, NewReleaseSearchResult, StoredBookHolding } from '../types/library'
 
 const kdcMajorItems = [
   { code: '0', name: '총류' },
@@ -56,6 +58,14 @@ export function NewReleasesPage() {
   }>({ shelfNames: [], bookCount: 0, nonbookCount: 0, missingShelfCount: 0 })
 
   const totalPages = Math.max(1, Math.ceil(result.total / pageSize))
+  const {
+    coverLoading,
+    coverMessage,
+    getCover,
+    loadCover,
+    loadVisibleCovers,
+    markCoverError,
+  } = useBookCovers(result.rows, { autoLoadLimit: Math.min(pageSize, 100) })
   const rangeLabel = useMemo(() => {
     if (result.total === 0) return '0건'
     const start = (page - 1) * pageSize + 1
@@ -127,6 +137,15 @@ export function NewReleasesPage() {
       setExporting(false)
     }
   }
+
+  const renderCover = (row: StoredBookHolding) => (
+    <BookCover
+      book={row}
+      cover={getCover(row)}
+      onLoad={(book) => void loadCover(book)}
+      onImageError={(book) => markCoverError(book)}
+    />
+  )
 
   return (
     <div className="page-stack">
@@ -284,26 +303,40 @@ export function NewReleasesPage() {
           <div>
             <strong>{loading ? '조회 중...' : `총 ${result.total.toLocaleString()}건`}</strong>
             <span>{rangeLabel}</span>
+            {coverLoading ? <span>표지 조회 중...</span> : null}
+            {coverMessage ? <span>{coverMessage}</span> : null}
           </div>
-          <label>
-            보기
-            <select
-              value={pageSize}
-              onChange={(event) => {
-                setPage(1)
-                setPageSize(Number(event.target.value))
-              }}
+          <div className="table-toolbar-actions">
+            <button
+              type="button"
+              className="secondary-button"
+              onClick={() => void loadVisibleCovers()}
+              disabled={coverLoading || result.rows.length === 0}
             >
-              <option value={50}>50건</option>
-              <option value={100}>100건</option>
-              <option value={200}>200건</option>
-            </select>
-          </label>
+              <ImageIcon size={16} aria-hidden="true" />
+              현재 페이지 표지
+            </button>
+            <label>
+              보기
+              <select
+                value={pageSize}
+                onChange={(event) => {
+                  setPage(1)
+                  setPageSize(Number(event.target.value))
+                }}
+              >
+                <option value={50}>50건</option>
+                <option value={100}>100건</option>
+                <option value={200}>200건</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div className="table-scroll">
           <table>
             <thead>
               <tr>
+                <th>표지</th>
                 <th>도서명</th>
                 <th>저자</th>
                 <th>출판사</th>
@@ -318,6 +351,7 @@ export function NewReleasesPage() {
             <tbody>
               {result.rows.map((row) => (
                 <tr key={row.id}>
+                  <td className="cover-cell">{renderCover(row)}</td>
                   <td>{row.title}</td>
                   <td>{row.author}</td>
                   <td>{row.publisher}</td>
@@ -331,7 +365,7 @@ export function NewReleasesPage() {
               ))}
               {!loading && result.rows.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="empty-cell">
+                  <td colSpan={10} className="empty-cell">
                     <Search size={18} aria-hidden="true" />
                     조회 결과가 없습니다.
                   </td>
