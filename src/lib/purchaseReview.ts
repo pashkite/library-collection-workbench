@@ -5,7 +5,8 @@ import type {
   WorkbookPreview,
 } from '../types/library'
 import { normalizeIsbn } from '../utils/normalize'
-import { findHoldingByIsbn, findSimilarHoldings } from './libraryDb'
+import { findSimilarHoldings } from './libraryDb'
+import { findHoldingByIsbn } from './libraryDbExtras'
 
 async function loadXlsx() {
   return import('xlsx')
