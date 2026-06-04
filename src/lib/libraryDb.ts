@@ -82,9 +82,14 @@ export async function replaceHoldings(
     onProgress?.(processed, rows.length)
   }
 
-  const metaTransaction = db.transaction('meta', 'readwrite')
-  await metaTransaction.objectStore('meta').put({ key: META_KEY, value: meta })
-  await metaTransaction.done
+  await updateStoredMeta(meta)
+}
+
+export async function updateStoredMeta(meta: DataMeta) {
+  const db = await getDb()
+  const transaction = db.transaction('meta', 'readwrite')
+  await transaction.objectStore('meta').put({ key: META_KEY, value: meta })
+  await transaction.done
 }
 
 export async function getStoredMeta(): Promise<DataMeta | undefined> {
@@ -347,63 +352,27 @@ export async function findSimilarHoldings(
   limit = 3,
 ): Promise<StoredBookHolding[]> {
   if (!normalizeCompact(candidate.title) && !candidate.normalizedIsbn) return []
-  const scored: Array<{ row: StoredBookHolding; score: number }> = []
+
   const db = await getDb()
+  const scored: Array<{ row: StoredBookHolding; score: number }> = []
   let cursor = await db.transaction('holdings').store.openCursor()
 
   while (cursor) {
     const row = cursor.value
-    if (candidate.normalizedIsbn && row.normalizedIsbn === candidate.normalizedIsbn) {
-      cursor = await cursor.continue()
-      continue
-    }
     const score = similarScore(candidate, row)
-    if (score >= 48) scored.push({ row, score })
+    if (score >= 40) scored.push({ row, score })
     cursor = await cursor.continue()
   }
 
   return scored
     .sort((left, right) => right.score - left.score)
     .slice(0, limit)
-    .map((entry) => entry.row)
+    .map((item) => item.row)
 }
 
 export async function getAllHoldings(): Promise<StoredBookHolding[]> {
   const db = await getDb()
   return db.getAll('holdings')
-}
-
-export async function getHoldingFacetOptions() {
-  const db = await getDb()
-  const shelfNames = new Set<string>()
-  let bookCount = 0
-  let nonbookCount = 0
-  let missingShelfCount = 0
-  let cursor = await db.transaction('holdings').store.openCursor()
-
-  while (cursor) {
-    const row = cursor.value
-    if (row.shelfName) shelfNames.add(row.shelfName)
-    else missingShelfCount += 1
-
-    if (getMaterialType(row) === 'nonbook') nonbookCount += 1
-    else bookCount += 1
-    cursor = await cursor.continue()
-  }
-
-  return {
-    shelfNames: [...shelfNames].sort((left, right) => left.localeCompare(right, 'ko')),
-    bookCount,
-    nonbookCount,
-    missingShelfCount,
-  }
-}
-
-export async function findHoldingByIsbn(isbn: string): Promise<StoredBookHolding | undefined> {
-  const normalizedIsbn = normalizeIsbn(isbn)
-  if (!normalizedIsbn) return undefined
-  const db = await getDb()
-  return db.getFromIndex('holdings', 'by-isbn', normalizedIsbn)
 }
 
 export async function clearHoldingsCache() {
@@ -415,8 +384,6 @@ export async function clearHoldingsCache() {
 }
 
 export async function resetAllData() {
-  const db = await getDb()
-  await db.clear('holdings')
-  await db.clear('meta')
+  await clearHoldingsCache()
   localStorage.removeItem('aladin-ttb-key')
 }
