@@ -27,6 +27,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run update:holdings:daily
+      - run: npm run update:holdings:touch-meta
       - name: Commit updated holdings
         uses: stefanzweifel/git-auto-commit-action@v7
         with:
