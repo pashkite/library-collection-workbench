@@ -41,6 +41,8 @@ npm run build
 npm run lint
 ```
 
+GitHub Pages 배포 워크플로는 `main` 브랜치에 push하면 자동으로 실행됩니다.
+
 ## 주요 기능
 
 - 앱 시작 시 `public/data/holdings.meta.json`, `public/data/holdings.latest.json`을 확인하고 IndexedDB에 저장
