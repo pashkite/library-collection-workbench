@@ -1,14 +1,20 @@
-# 도서관 장서 업무 보조 웹
+# 도서관 장서 업무 보조 웹 (Library Collection Workbench)
 
-공공도서관 종합자료실 장서 업무를 보조하는 React 기반 웹앱입니다. 소장목록 조회, 신간도서 필터링, 구입 후보 엑셀 중복 검토, 도서 선정 근거 확인, 알라딘 상세정보 조회, 데이터 관리 기능을 브라우저에서 처리합니다.
+공공도서관 종합자료실 장서 업무를 보조하는 React 기반 웹앱입니다.
+**게임형(다크 판타지) UI 셸** + **실무 장서 도구(실데이터)** 하이브리드 구조입니다.
+
+- 상단 네비: 로비 / 수집 / 검색 / 상세 / 서가 / 미션 / 인벤 / 통계 (Three.js 배경)
+- 하단 실무 도크: 소장검색 · 신간 · 구입검토 · 선정근거 · 알라딘 · 설정 (IndexedDB 실데이터)
+
+소장목록 조회, 신간 필터, 구입 후보 엑셀 중복 검토, 선정 근거, 알라딘 상세, 데이터 관리 기능은 그대로 사용할 수 있습니다.
 
 ## 기술 스택
 
 - React, Vite, TypeScript
-- SheetJS
-- IndexedDB (`idb`)
-- GitHub Actions
-- GitHub Pages 또는 Cloudflare Pages 배포 가능 구조
+- Three.js + @react-three/fiber + @react-three/drei
+- Zustand (게임 UI 상태)
+- SheetJS / IndexedDB (`idb`)
+- GitHub Actions / GitHub Pages
 
 ## 설치
 
