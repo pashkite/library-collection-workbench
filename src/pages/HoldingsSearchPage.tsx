@@ -1,4 +1,16 @@
-import { Download, Image as ImageIcon, RotateCcw, Search } from 'lucide-react'
+import {
+  BookOpen,
+  Building2,
+  CalendarDays,
+  Disc3,
+  Download,
+  Hash,
+  Image as ImageIcon,
+  Library,
+  RotateCcw,
+  Search,
+  UserRound,
+} from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { BookCover } from '../components/BookCover'
 import { ErrorNotice } from '../components/ErrorNotice'
@@ -9,6 +21,7 @@ import { getAllHoldings, getMaterialTypeLabel, searchHoldings } from '../lib/lib
 import { getHoldingFacetOptions } from '../lib/libraryDbExtras'
 import { useBookCovers } from '../lib/useBookCovers'
 import type { HoldingSearchFilters, HoldingSearchResult, StoredBookHolding } from '../types/library'
+import './HoldingsSearchPage.css'
 
 const initialFilters: HoldingSearchFilters = {
   title: '',
@@ -23,12 +36,13 @@ export function HoldingsSearchPage() {
   const { data } = useAppData()
   const [filters, setFilters] = useState(initialFilters)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(100)
+  const [pageSize, setPageSize] = useState(50)
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
   const [result, setResult] = useState<HoldingSearchResult>({
     rows: [],
     total: 0,
     page: 1,
-    pageSize: 100,
+    pageSize: 50,
   })
   const [loading, setLoading] = useState(false)
   const [exporting, setExporting] = useState(false)
@@ -48,7 +62,7 @@ export function HoldingsSearchPage() {
     loadCover,
     loadVisibleCovers,
     markCoverError,
-  } = useBookCovers(result.rows, { autoLoadLimit: Math.min(pageSize, 100) })
+  } = useBookCovers(result.rows, { autoLoadLimit: Math.min(pageSize, 50) })
   const rangeLabel = useMemo(() => {
     if (result.total === 0) return '0건'
     const start = (page - 1) * pageSize + 1
@@ -139,22 +153,36 @@ export function HoldingsSearchPage() {
     }
   }
 
-  const renderCover = (row: StoredBookHolding) => {
+  const renderCover = (row: StoredBookHolding, size: 'md' | 'lg' = 'md') => {
     return (
       <BookCover
         book={row}
         cover={getCover(row)}
+        size={size}
         onLoad={(book) => void loadCover(book)}
         onImageError={(book) => markCoverError(book)}
       />
     )
   }
 
+  const activeChips = useMemo(() => {
+    const chips: string[] = []
+    if (filters.materialType === 'book') chips.push('도서자료')
+    if (filters.materialType === 'nonbook') chips.push('비도서자료')
+    if (filters.shelfName) chips.push(filters.shelfName)
+    if (filters.title.trim()) chips.push(`서명: ${filters.title.trim()}`)
+    if (filters.author.trim()) chips.push(`저자: ${filters.author.trim()}`)
+    if (filters.publisher.trim()) chips.push(`출판사: ${filters.publisher.trim()}`)
+    if (filters.isbn.trim()) chips.push(`ISBN: ${filters.isbn.trim()}`)
+    return chips
+  }, [filters])
+
   return (
-    <div className="page-stack">
+    <div className="page-stack holdings-page">
       <PageHeader
         title="소장도서 조회"
-        description="검색은 IndexedDB에 저장된 소장목록을 기준으로 수행합니다."
+        description="저장된 소장목록에서 서명·저자·ISBN·자료실 조건으로 바로 찾아보고, 필요한 목록만 엑셀로 내려받습니다."
+        eyebrow="Catalog Search"
         actions={
           <div className="button-row">
             <button type="button" className="secondary-button" onClick={() => void exportAll()}>
@@ -174,11 +202,34 @@ export function HoldingsSearchPage() {
         }
       />
 
-      <section className="panel">
+      <section className="holdings-stats" aria-label="소장 현황 요약">
+        <article>
+          <span>전체 소장</span>
+          <strong>{data.totalCount.toLocaleString()}</strong>
+          <small>IndexedDB 기준</small>
+        </article>
+        <article>
+          <span>도서자료</span>
+          <strong>{facetOptions.bookCount.toLocaleString()}</strong>
+          <small>단행본 중심</small>
+        </article>
+        <article>
+          <span>비도서자료</span>
+          <strong>{facetOptions.nonbookCount.toLocaleString()}</strong>
+          <small>DVD · 디지털 등</small>
+        </article>
+        <article className={hasActiveFilter ? 'is-active' : undefined}>
+          <span>현재 검색</span>
+          <strong>{loading ? '…' : result.total.toLocaleString()}</strong>
+          <small>{hasActiveFilter ? '필터 적용됨' : '전체 보기'}</small>
+        </article>
+      </section>
+
+      <section className="panel holdings-filter">
         <div className="filter-header">
           <div>
             <strong>검색 조건</strong>
-            <span>입력하면 저장된 소장목록에서 바로 검색합니다.</span>
+            <span>입력하면 바로 반영됩니다. 조건을 조합해 좁혀보세요.</span>
           </div>
           <button
             type="button"
@@ -190,9 +241,13 @@ export function HoldingsSearchPage() {
             조건 초기화
           </button>
         </div>
-        <div className="search-grid">
-          <label>
-            자료구분
+
+        <div className="holdings-search-grid">
+          <label className="field-card">
+            <span className="field-label">
+              <Library size={14} aria-hidden="true" />
+              자료구분
+            </span>
             <select
               value={filters.materialType}
               onChange={(event) =>
@@ -204,8 +259,12 @@ export function HoldingsSearchPage() {
               <option value="nonbook">비도서자료</option>
             </select>
           </label>
-          <label>
-            자료실
+
+          <label className="field-card">
+            <span className="field-label">
+              <Building2 size={14} aria-hidden="true" />
+              자료실
+            </span>
             <select
               value={filters.shelfName}
               onChange={(event) => updateFilter('shelfName', event.target.value)}
@@ -221,30 +280,71 @@ export function HoldingsSearchPage() {
               ))}
             </select>
           </label>
-          <label>
-            도서명
-            <input value={filters.title} onChange={(event) => updateFilter('title', event.target.value)} />
+
+          <label className="field-card field-span-2">
+            <span className="field-label">
+              <BookOpen size={14} aria-hidden="true" />
+              도서명
+            </span>
+            <input
+              value={filters.title}
+              onChange={(event) => updateFilter('title', event.target.value)}
+              placeholder="서명 일부 입력"
+            />
           </label>
-          <label>
-            저자
-            <input value={filters.author} onChange={(event) => updateFilter('author', event.target.value)} />
+
+          <label className="field-card">
+            <span className="field-label">
+              <UserRound size={14} aria-hidden="true" />
+              저자
+            </span>
+            <input
+              value={filters.author}
+              onChange={(event) => updateFilter('author', event.target.value)}
+              placeholder="저자명"
+            />
           </label>
-          <label>
-            출판사
+
+          <label className="field-card">
+            <span className="field-label">
+              <Building2 size={14} aria-hidden="true" />
+              출판사
+            </span>
             <input
               value={filters.publisher}
               onChange={(event) => updateFilter('publisher', event.target.value)}
+              placeholder="출판사"
             />
           </label>
-          <label>
-            ISBN
-            <input value={filters.isbn} onChange={(event) => updateFilter('isbn', event.target.value)} />
+
+          <label className="field-card">
+            <span className="field-label">
+              <Hash size={14} aria-hidden="true" />
+              ISBN
+            </span>
+            <input
+              value={filters.isbn}
+              onChange={(event) => updateFilter('isbn', event.target.value)}
+              placeholder="ISBN"
+            />
           </label>
         </div>
+
+        {activeChips.length > 0 ? (
+          <div className="active-filter-row" aria-label="적용된 검색 조건">
+            {activeChips.map((chip) => (
+              <span key={chip} className="filter-chip">
+                {chip}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
         {facetOptions.missingShelfCount > 0 ? (
           <p className="filter-note">
-            현재 소장목록 {facetOptions.missingShelfCount.toLocaleString()}건에 자료실 값이 없어 자료실 필터가 제한됩니다.
-            자료구분은 DVD/CD, 디지털자료실, 영상자료 등 비도서 단서를 기준으로 분리합니다.
+            현재 소장목록 {facetOptions.missingShelfCount.toLocaleString()}건에 자료실 값이 없어 자료실
+            필터가 제한됩니다. 자료구분은 DVD/CD, 디지털자료실, 영상자료 등 비도서 단서를 기준으로
+            분리합니다.
           </p>
         ) : null}
       </section>
@@ -257,16 +357,39 @@ export function HoldingsSearchPage() {
         />
       ) : null}
 
-      <section className="panel table-panel">
-        <div className="table-toolbar">
-          <div>
-            <strong>{loading ? '검색 중...' : `총 ${result.total.toLocaleString()}건`}</strong>
-            <span>{rangeLabel}</span>
-            {exporting ? <span>엑셀 생성 중...</span> : null}
-            {coverLoading ? <span>표지 조회 중...</span> : null}
-            {coverMessage ? <span>{coverMessage}</span> : null}
+      <section className="panel holdings-results">
+        <div className="results-toolbar">
+          <div className="results-summary">
+            <p className="results-kicker">Search Results</p>
+            <div className="results-title-row">
+              <strong>{loading ? '검색 중...' : `총 ${result.total.toLocaleString()}건`}</strong>
+              <span className="results-range">{rangeLabel}</span>
+            </div>
+            <div className="results-status">
+              {exporting ? <span className="status-pill">엑셀 생성 중</span> : null}
+              {coverLoading ? <span className="status-pill">표지 조회 중</span> : null}
+              {coverMessage ? <span className="status-pill is-muted">{coverMessage}</span> : null}
+            </div>
           </div>
-          <div className="table-toolbar-actions">
+
+          <div className="results-actions">
+            <div className="view-toggle" role="group" aria-label="보기 방식">
+              <button
+                type="button"
+                className={viewMode === 'cards' ? 'is-active' : undefined}
+                onClick={() => setViewMode('cards')}
+              >
+                카드
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'table' ? 'is-active' : undefined}
+                onClick={() => setViewMode('table')}
+              >
+                표
+              </button>
+            </div>
+
             <button
               type="button"
               className="secondary-button"
@@ -276,7 +399,8 @@ export function HoldingsSearchPage() {
               <ImageIcon size={16} aria-hidden="true" />
               현재 페이지 표지
             </button>
-            <label>
+
+            <label className="page-size-field">
               보기
               <select
                 value={pageSize}
@@ -285,6 +409,7 @@ export function HoldingsSearchPage() {
                   setPageSize(Number(event.target.value))
                 }}
               >
+                <option value={25}>25건</option>
                 <option value={50}>50건</option>
                 <option value={100}>100건</option>
                 <option value={200}>200건</option>
@@ -292,54 +417,146 @@ export function HoldingsSearchPage() {
             </label>
           </div>
         </div>
-        <p className="table-hint">표가 화면보다 넓으면 좌우로 스크롤해서 모든 열을 확인할 수 있습니다.</p>
 
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>표지</th>
-                <th>도서명</th>
-                <th>저자</th>
-                <th>출판사</th>
-                <th>출판연도</th>
-                <th>ISBN</th>
-                <th>자료구분</th>
-                <th>KDC</th>
-                <th>청구기호</th>
-                <th>배가명</th>
-                <th>등록일</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.rows.map((row) => (
-                <tr key={row.id}>
-                  <td className="cover-cell">{renderCover(row)}</td>
-                  <td>{row.title}</td>
-                  <td>{row.author}</td>
-                  <td>{row.publisher}</td>
-                  <td>{row.publicationYear}</td>
-                  <td>{row.isbn}</td>
-                  <td>{getMaterialTypeLabel(row)}</td>
-                  <td>{row.kdc}</td>
-                  <td>{row.callNumber}</td>
-                  <td>{row.shelfName}</td>
-                  <td>{row.registeredAt}</td>
-                </tr>
-              ))}
-              {!loading && result.rows.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="empty-cell">
-                    <Search size={18} aria-hidden="true" />
-                    검색 결과가 없습니다.
-                  </td>
-                </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+        {viewMode === 'cards' ? (
+          <div className={`holdings-card-list${loading ? ' is-loading' : ''}`}>
+            {result.rows.map((row) => {
+              const material = getMaterialTypeLabel(row)
+              const isNonbook = material.includes('비도서')
+              return (
+                <article key={row.id} className="holding-card">
+                  <div className="holding-cover">{renderCover(row, 'lg')}</div>
+                  <div className="holding-body">
+                    <div className="holding-top">
+                      <div className="holding-heading">
+                        <h3>{row.title || '제목 없음'}</h3>
+                        <p>
+                          {[row.author, row.publisher, row.publicationYear].filter(Boolean).join(' · ') ||
+                            '서지정보 없음'}
+                        </p>
+                      </div>
+                      <span className={`material-badge${isNonbook ? ' is-media' : ''}`}>
+                        {isNonbook ? <Disc3 size={13} aria-hidden="true" /> : <BookOpen size={13} aria-hidden="true" />}
+                        {material}
+                      </span>
+                    </div>
 
-        <div className="pagination">
+                    <div className="holding-meta-grid">
+                      <div>
+                        <span>ISBN</span>
+                        <strong>{row.isbn || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>KDC</span>
+                        <strong>{row.kdc || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>청구기호</span>
+                        <strong>{row.callNumber || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>배가명</span>
+                        <strong>{row.shelfName || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>
+                          <CalendarDays size={12} aria-hidden="true" /> 등록일
+                        </span>
+                        <strong>{row.registeredAt || '-'}</strong>
+                      </div>
+                    </div>
+                  </div>
+                </article>
+              )
+            })}
+
+            {!loading && result.rows.length === 0 ? (
+              <div className="holdings-empty">
+                <Search size={22} aria-hidden="true" />
+                <strong>검색 결과가 없습니다</strong>
+                <p>조건을 조금 넓히거나 다른 키워드로 다시 검색해 보세요.</p>
+              </div>
+            ) : null}
+
+            {loading && result.rows.length === 0
+              ? Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="holding-card is-skeleton" aria-hidden="true">
+                    <div className="holding-cover skeleton-block" />
+                    <div className="holding-body">
+                      <div className="skeleton-line w-70" />
+                      <div className="skeleton-line w-45" />
+                      <div className="skeleton-line w-90" />
+                    </div>
+                  </div>
+                ))
+              : null}
+          </div>
+        ) : (
+          <>
+            <p className="table-hint">표가 화면보다 넓으면 좌우로 스크롤해서 모든 열을 확인할 수 있습니다.</p>
+            <div className="table-scroll holdings-table-wrap">
+              <table className="holdings-table">
+                <thead>
+                  <tr>
+                    <th>표지</th>
+                    <th>도서명</th>
+                    <th>저자</th>
+                    <th>출판사</th>
+                    <th>출판연도</th>
+                    <th>ISBN</th>
+                    <th>자료구분</th>
+                    <th>KDC</th>
+                    <th>청구기호</th>
+                    <th>배가명</th>
+                    <th>등록일</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.rows.map((row) => {
+                    const material = getMaterialTypeLabel(row)
+                    const isNonbook = material.includes('비도서')
+                    return (
+                      <tr key={row.id}>
+                        <td className="cover-cell">{renderCover(row, 'md')}</td>
+                        <td>
+                          <div className="table-title-cell">
+                            <strong>{row.title}</strong>
+                            <span>
+                              {[row.author, row.publicationYear].filter(Boolean).join(' · ')}
+                            </span>
+                          </div>
+                        </td>
+                        <td>{row.author}</td>
+                        <td>{row.publisher}</td>
+                        <td>{row.publicationYear}</td>
+                        <td className="mono-cell">{row.isbn}</td>
+                        <td>
+                          <span className={`material-badge compact${isNonbook ? ' is-media' : ''}`}>
+                            {material}
+                          </span>
+                        </td>
+                        <td>{row.kdc}</td>
+                        <td>{row.callNumber}</td>
+                        <td>{row.shelfName}</td>
+                        <td>{row.registeredAt}</td>
+                      </tr>
+                    )
+                  })}
+                  {!loading && result.rows.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="empty-cell">
+                        <Search size={18} aria-hidden="true" />
+                        검색 결과가 없습니다.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        <div className="pagination holdings-pagination">
           <button type="button" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={page <= 1}>
             이전
           </button>
