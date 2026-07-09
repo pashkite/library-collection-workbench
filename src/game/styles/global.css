@@ -1,22 +1,25 @@
 :root {
   --bg-deep: #070b18;
-  --bg-panel: rgba(16, 22, 42, 0.72);
-  --bg-panel-strong: rgba(12, 17, 34, 0.88);
-  --border: rgba(168, 196, 255, 0.16);
-  --border-gold: rgba(242, 201, 107, 0.55);
-  --text: #eef3ff;
-  --muted: #9aa8c7;
-  --gold: #f2c96b;
-  --gold-strong: #ffd978;
-  --purple: #8b6cff;
-  --blue: #4cc9f0;
+  /* Higher opacity panels for readability over 3D scene */
+  --bg-panel: rgba(10, 16, 34, 0.9);
+  --bg-panel-strong: rgba(9, 14, 30, 0.95);
+  --border: rgba(190, 210, 255, 0.28);
+  --border-gold: rgba(255, 220, 120, 0.7);
+  --text: #f7f9ff;
+  --muted: #c2cce6;
+  --gold: #ffd978;
+  --gold-strong: #ffe9a8;
+  --purple: #a78bfa;
+  --blue: #5ed4ff;
   --cyan: #7ef0d5;
-  --danger: #ff7b8a;
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
-  --radius: 18px;
-  --nav-h: 74px;
-  --footer-h: 42px;
-  font-family: 'Segoe UI', 'Noto Sans KR', system-ui, -apple-system, sans-serif;
+  --danger: #ff8b98;
+  --shadow: 0 18px 50px rgba(0, 0, 0, 0.55);
+  --radius: 16px;
+  --nav-h: 72px;
+  --footer-h: 40px;
+  font-family: 'IBM Plex Sans KR', 'Noto Sans KR', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
   color: var(--text);
   background: var(--bg-deep);
   font-synthesis: none;
@@ -86,6 +89,17 @@ p {
   height: 100% !important;
 }
 
+/* Darken 3D background under UI for contrast */
+.scene-layer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(5, 8, 18, 0.45) 0%, rgba(5, 8, 18, 0.2) 28%, rgba(5, 8, 18, 0.55) 100%),
+    radial-gradient(circle at 50% 20%, transparent 0%, rgba(5, 8, 18, 0.35) 70%);
+  pointer-events: none;
+}
+
 .ui-layer {
   position: relative;
   z-index: 1;
@@ -117,22 +131,22 @@ p {
 
 .glass {
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02) 40%),
     var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(18px) saturate(1.25);
 }
 
 .glass-strong {
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.1), transparent 40%),
+    linear-gradient(165deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03) 42%),
     var(--bg-panel-strong);
-  border: 1px solid rgba(168, 196, 255, 0.2);
+  border: 1px solid rgba(200, 215, 255, 0.32);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(20px) saturate(1.3);
 }
 
 .game-button {
@@ -206,9 +220,9 @@ p {
   align-items: center;
   min-height: var(--nav-h);
   padding: 10px 18px;
-  background: rgba(7, 11, 24, 0.72);
-  border-bottom: 1px solid rgba(168, 196, 255, 0.12);
-  backdrop-filter: blur(18px);
+  background: rgba(7, 11, 24, 0.92);
+  border-bottom: 1px solid rgba(190, 210, 255, 0.22);
+  backdrop-filter: blur(20px);
 }
 
 .brand {
@@ -251,13 +265,13 @@ p {
 
 .nav-links button {
   position: relative;
-  min-height: 38px;
-  padding: 0 12px;
-  color: var(--muted);
+  min-height: 40px;
+  padding: 0 13px;
+  color: #d7e2ff;
   background: transparent;
   border: 1px solid transparent;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   transition: 160ms ease;
 }
@@ -269,11 +283,11 @@ p {
 
 .nav-links button.active {
   color: #fff;
-  background: rgba(108, 78, 255, 0.22);
-  border-color: rgba(164, 132, 255, 0.65);
+  background: rgba(139, 108, 255, 0.32);
+  border-color: rgba(190, 165, 255, 0.85);
   box-shadow:
-    0 0 0 1px rgba(140, 110, 255, 0.2),
-    0 0 22px rgba(139, 108, 255, 0.35);
+    0 0 0 1px rgba(167, 139, 250, 0.35),
+    0 0 24px rgba(167, 139, 250, 0.4);
 }
 
 .nav-right {
@@ -375,8 +389,8 @@ p {
   min-height: var(--footer-h);
   padding: 0 22px;
   color: var(--muted);
-  background: rgba(7, 11, 24, 0.7);
-  border-top: 1px solid rgba(168, 196, 255, 0.1);
+  background: rgba(7, 11, 24, 0.92);
+  border-top: 1px solid rgba(190, 210, 255, 0.18);
   backdrop-filter: blur(12px);
   font-size: 12px;
 }
@@ -400,15 +414,17 @@ p {
 }
 
 .panel-title h2 {
-  font-size: 22px;
+  font-size: 24px;
   letter-spacing: -0.02em;
+  color: #ffffff;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.35);
 }
 
 .panel-title p,
 .muted {
   color: var(--muted);
-  font-size: 13px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .grid-2 {
@@ -631,9 +647,11 @@ p {
 }
 
 .lobby-copy h1 {
-  font-size: clamp(40px, 5vw, 68px);
+  font-size: clamp(42px, 5.2vw, 70px);
   line-height: 1.05;
   letter-spacing: -0.03em;
+  color: #ffffff;
+  text-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 
 .lobby-copy h1 span {
@@ -1009,8 +1027,8 @@ body:has(.loading-shell) {
   max-width: min(980px, calc(100vw - 24px));
   padding: 10px 12px;
   transform: translateX(-50%);
-  background: rgba(10, 14, 28, 0.86);
-  border: 1px solid rgba(168, 196, 255, 0.16);
+  background: rgba(8, 12, 26, 0.94);
+  border: 1px solid rgba(190, 210, 255, 0.28);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
 }
 
@@ -1297,4 +1315,87 @@ body:has(.loading-shell) {
   .work-panel-body {
     max-height: calc(100vh - 250px);
   }
+}
+
+
+/* ===== Readability pass ===== */
+.game-app .lobby-copy,
+.game-app .lobby-side .menu-card,
+.game-app .book-card,
+.game-app .mission-card,
+.game-app .item-card,
+.game-app .stat-card,
+.game-app .result-item {
+  background: rgba(10, 16, 34, 0.92) !important;
+  border-color: rgba(190, 210, 255, 0.28) !important;
+}
+
+.game-app .menu-card strong,
+.game-app .book-card strong,
+.game-app .mission-card strong,
+.game-app .result-item strong,
+.game-app .item-card strong {
+  color: #ffffff;
+  font-size: 14px;
+}
+
+.game-app .chip,
+.game-app .tab {
+  color: #dce6ff;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(190, 210, 255, 0.22);
+  font-size: 13px;
+}
+
+.game-app .chip.active,
+.game-app .tab.active {
+  color: #fff;
+  background: rgba(167, 139, 250, 0.28);
+  border-color: rgba(200, 175, 255, 0.75);
+}
+
+.game-app .resource-chip {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(190, 210, 255, 0.24);
+  font-size: 12.5px;
+}
+
+.game-app .nav-search {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(190, 210, 255, 0.24);
+  color: #e8efff;
+}
+
+.game-app .field input,
+.game-app .field select,
+.game-app .field textarea {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(190, 210, 255, 0.28);
+  font-size: 14px;
+}
+
+.game-app .info-list div {
+  font-size: 14px;
+}
+
+.game-app .info-list span {
+  color: #c5d0ea;
+}
+
+.game-app .badge {
+  font-size: 12px;
+}
+
+.game-app .page-viewport {
+  padding: 20px 24px 96px;
+}
+
+/* Make 3D less competitive with text on content-heavy pages */
+.game-app[data-page='search'] .scene-layer::after,
+.game-app[data-page='stats'] .scene-layer::after,
+.game-app[data-page='inventory'] .scene-layer::after,
+.game-app[data-page='missions'] .scene-layer::after {
+  background: rgba(5, 8, 18, 0.58);
 }

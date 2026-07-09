@@ -141,6 +141,7 @@ function GamePage() {
 function GameShell({ children }: { children: ReactNode }) {
   const toast = useGameStore((s) => s.toast)
   const setToast = useGameStore((s) => s.setToast)
+  const page = useGameStore((s) => s.page)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -150,7 +151,7 @@ function GameShell({ children }: { children: ReactNode }) {
   }, [toast, setToast])
 
   return (
-    <div className="app-shell game-app">
+    <div className="app-shell game-app" data-page={page}>
       <Suspense fallback={null}>
         <ThreeScene />
       </Suspense>
