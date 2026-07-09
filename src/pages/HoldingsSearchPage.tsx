@@ -53,6 +53,7 @@ export function HoldingsSearchPage() {
     nonbookCount: number
     missingShelfCount: number
   }>({ shelfNames: [], bookCount: 0, nonbookCount: 0, missingShelfCount: 0 })
+  const [facetsLoading, setFacetsLoading] = useState(true)
 
   const totalPages = Math.max(1, Math.ceil(result.total / pageSize))
   const {
@@ -100,9 +101,14 @@ export function HoldingsSearchPage() {
 
   useEffect(() => {
     let canceled = false
-    void getHoldingFacetOptions().then((options) => {
-      if (!canceled) setFacetOptions(options)
-    })
+    setFacetsLoading(true)
+    void getHoldingFacetOptions()
+      .then((options) => {
+        if (!canceled) setFacetOptions(options)
+      })
+      .finally(() => {
+        if (!canceled) setFacetsLoading(false)
+      })
     return () => {
       canceled = true
     }
@@ -210,12 +216,12 @@ export function HoldingsSearchPage() {
         </article>
         <article>
           <span>도서자료</span>
-          <strong>{facetOptions.bookCount.toLocaleString()}</strong>
+          <strong>{facetsLoading ? '…' : facetOptions.bookCount.toLocaleString()}</strong>
           <small>단행본 중심</small>
         </article>
         <article>
           <span>비도서자료</span>
-          <strong>{facetOptions.nonbookCount.toLocaleString()}</strong>
+          <strong>{facetsLoading ? '…' : facetOptions.nonbookCount.toLocaleString()}</strong>
           <small>DVD · 디지털 등</small>
         </article>
         <article className={hasActiveFilter ? 'is-active' : undefined}>
