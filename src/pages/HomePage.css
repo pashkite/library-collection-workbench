@@ -1,17 +1,17 @@
 .home-immersive {
   position: relative;
   display: grid;
-  gap: 20px;
-  min-height: calc(100vh - 66px);
-  margin: -32px;
-  padding: 28px;
+  gap: 18px;
+  min-height: calc(100vh - 68px);
+  margin: -28px -32px -40px;
+  padding: 28px 32px 36px;
   color: #f7f2df;
   overflow: hidden;
   background:
-    radial-gradient(circle at 72% 18%, rgba(45, 240, 218, 0.24), transparent 28%),
-    radial-gradient(circle at 28% 12%, rgba(246, 197, 105, 0.22), transparent 28%),
-    radial-gradient(circle at 85% 80%, rgba(28, 99, 255, 0.18), transparent 36%),
-    linear-gradient(145deg, #031b1b 0%, #062323 44%, #100f21 100%);
+    radial-gradient(circle at 72% 18%, rgba(45, 240, 218, 0.2), transparent 28%),
+    radial-gradient(circle at 28% 12%, rgba(246, 197, 105, 0.18), transparent 28%),
+    radial-gradient(circle at 85% 80%, rgba(28, 99, 255, 0.12), transparent 36%),
+    linear-gradient(145deg, #041b1a 0%, #0a2624 44%, #12151f 100%);
 }
 
 .home-immersive::before,
@@ -110,9 +110,11 @@
 .hero-copy h1 {
   margin: 0;
   color: #fff8df;
-  font-size: clamp(42px, 5.4vw, 82px);
-  line-height: 1.07;
-  letter-spacing: -0.06em;
+  font-family: var(--font-display), 'Instrument Serif', Georgia, serif;
+  font-size: clamp(42px, 5.4vw, 78px);
+  font-weight: 400;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
   text-wrap: balance;
   text-shadow: 0 12px 38px rgba(0, 0, 0, 0.38);
 }
