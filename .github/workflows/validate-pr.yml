@@ -25,3 +25,8 @@ jobs:
       - run: npm run build
         env:
           ALADIN_TTB_KEY: ${{ secrets.ALADIN_TTB_KEY }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: preview-dist
+          path: dist
+          retention-days: 3
