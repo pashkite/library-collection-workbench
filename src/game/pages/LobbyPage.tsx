@@ -1,81 +1,128 @@
+import { ArrowRight, Database, ListChecks, MousePointer2, Search, Sparkles } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { GameButton } from '../components/GameButton'
-import { GlassPanel } from '../components/GlassPanel'
 import { useGameStore } from '../store/useGameStore'
 import { useAppData } from '../../lib/AppDataContext'
 
+const stationHelp = [
+  { key: '01', label: '서가', detail: '장서 수집 현황' },
+  { key: '02', label: '책상', detail: '도서 검색' },
+  { key: '03', label: '게시판', detail: '오늘의 업무' },
+]
+
 export function LobbyPage() {
-  const resources = useGameStore((s) => s.resources)
-  const setPage = useGameStore((s) => s.setPage)
+  const resources = useGameStore((state) => state.resources)
+  const setPage = useGameStore((state) => state.setPage)
+  const missions = useGameStore((state) => state.missions)
   const { data } = useAppData()
   const navigate = useNavigate()
-  const expPct = Math.round((resources.exp / resources.expMax) * 100)
+
+  const completedMissions = missions.filter((mission) => mission.completed).length
+  const expPercent = Math.min(100, Math.round((resources.exp / resources.expMax) * 100))
 
   const goGame = (page: Parameters<typeof setPage>[0], path: string) => {
     setPage(page)
     navigate(path)
   }
 
+  const goHoldings = () => {
+    setPage('search')
+    navigate('/holdings')
+  }
+
   return (
-    <div className="lobby-hero page-enter">
-      <GlassPanel className="lobby-copy" strong>
-        <p className="eyebrow">Main Lobby · Magical Library + Live Holdings</p>
-        <h1>
-          Library
-          <span>Collection Workbench</span>
+    <div className="lobby-command page-enter">
+      <section className="lobby-brief" aria-labelledby="lobby-title">
+        <p className="hud-kicker">DALSEONG ARCHIVE · LIVE HOLDINGS</p>
+        <h1 id="lobby-title">
+          장서관리
+          <span>지휘실</span>
         </h1>
-        <p className="muted" style={{ maxWidth: 540, fontSize: 15, lineHeight: 1.7 }}>
-          지식의 보관과 관리, 당신의 도서관을 성장시키세요. 게임형 UI로 장서 업무를 보고,
-          하단 실무 도크로 실제 소장목록·구입검토 기능에 바로 들어갈 수 있습니다.
+        <p className="lobby-lead">
+          서가와 업무 스테이션을 직접 클릭해 이동하세요. 실무 도구는 실제 소장 데이터와 연결됩니다.
         </p>
 
-        <div className="level-bar glass">
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, gap: 12, flexWrap: 'wrap' }}>
-            <span>
-              도서관 등급 Lv.{resources.level} {resources.title}
-            </span>
-            <span style={{ color: 'var(--gold)' }}>
-              실데이터 {data.totalCount.toLocaleString()}권 · {data.meta?.baseDate ?? '-'}
-            </span>
-          </div>
-          <div className="progress">
-            <span style={{ width: `${expPct}%` }} />
-          </div>
-          <p className="muted" style={{ fontSize: 12 }}>
-            EXP {resources.exp}/{resources.expMax}
-          </p>
+        <div className="interaction-hint">
+          <MousePointer2 size={18} aria-hidden="true" />
+          <span><strong>3D 오브젝트 클릭</strong> · 마우스를 움직이면 시점이 반응합니다.</span>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-          <GameButton variant="gold" onClick={() => goGame('missions', '/game/missions')}>
-            업무 시작하기
-          </GameButton>
-          <GameButton variant="ghost" onClick={() => navigate('/holdings')}>
-            실무 소장검색 열기
-          </GameButton>
-          <GameButton variant="ghost" onClick={() => goGame('collection', '/game/collection')}>
-            수집 현황 보기
-          </GameButton>
-        </div>
-      </GlassPanel>
-
-      <div className="lobby-side">
-        {[
-          { title: '수집 현황', desc: '장서 수집률과 분야 분포', action: () => goGame('collection', '/game/collection'), icon: '📚' },
-          { title: '오늘의 업무', desc: '일일 미션과 보상 확인', action: () => goGame('missions', '/game/missions'), icon: '📋' },
-          { title: '실무 소장검색', desc: `${data.totalCount.toLocaleString()}권 IndexedDB`, action: () => navigate('/holdings'), icon: '🔎' },
-          { title: '구입 후보 검토', desc: '엑셀 중복 검토 실무 도구', action: () => navigate('/purchase-review'), icon: '✅' },
-        ].map((item) => (
-          <button key={item.title} type="button" className="menu-card glass" onClick={item.action}>
-            <span className="icon">{item.icon}</span>
-            <div style={{ textAlign: 'left' }}>
-              <strong>{item.title}</strong>
-              <p className="muted">{item.desc}</p>
-            </div>
-            <span aria-hidden="true">→</span>
+        <div className="lobby-primary-actions">
+          <button type="button" className="command-primary" onClick={goHoldings}>
+            <Search size={17} />
+            실무 소장검색
+            <ArrowRight size={16} />
           </button>
-        ))}
+          <button type="button" className="command-secondary" onClick={() => goGame('missions', '/game/missions')}>
+            <ListChecks size={17} />
+            오늘의 업무
+          </button>
+        </div>
+      </section>
+
+      <aside className="lobby-telemetry" aria-label="장서관리 현황">
+        <div className="telemetry-status">
+          <span className="live-pulse" aria-hidden="true" />
+          <span>LIVE DATA CONNECTED</span>
+          <small>{data.meta?.baseDate ?? '기준일 확인 중'}</small>
+        </div>
+
+        <div className="telemetry-grid">
+          <article>
+            <Database size={17} aria-hidden="true" />
+            <span>소장 데이터</span>
+            <strong>{data.totalCount.toLocaleString()}권</strong>
+          </article>
+          <article>
+            <ListChecks size={17} aria-hidden="true" />
+            <span>오늘의 업무</span>
+            <strong>{completedMissions}/{missions.length}</strong>
+          </article>
+          <article>
+            <Sparkles size={17} aria-hidden="true" />
+            <span>사서 등급</span>
+            <strong>Lv.{resources.level}</strong>
+          </article>
+        </div>
+
+        <div className="rank-progress" aria-label={`경험치 ${expPercent}%`}>
+          <div>
+            <span>{resources.title}</span>
+            <strong>{resources.exp.toLocaleString()} / {resources.expMax.toLocaleString()} EXP</strong>
+          </div>
+          <div className="rank-track"><span style={{ width: `${expPercent}%` }} /></div>
+        </div>
+
+        <div className="station-legend" aria-label="3D 스테이션 안내">
+          {stationHelp.map((item) => (
+            <div key={item.key}>
+              <span>{item.key}</span>
+              <strong>{item.label}</strong>
+              <small>{item.detail}</small>
+            </div>
+          ))}
+        </div>
+      </aside>
+
+      <div className="mobile-station-grid" aria-label="모바일 업무 스테이션">
+        <button type="button" onClick={() => goGame('collection', '/game/collection')}>
+          <LibraryStationIcon kind="collection" />
+          <span><strong>장서 수집실</strong><small>수집률과 분야 현황</small></span>
+        </button>
+        <button type="button" onClick={() => goGame('search', '/game/search')}>
+          <LibraryStationIcon kind="search" />
+          <span><strong>검색 기록실</strong><small>도서 탐색과 검색</small></span>
+        </button>
+        <button type="button" onClick={() => goGame('missions', '/game/missions')}>
+          <LibraryStationIcon kind="mission" />
+          <span><strong>오늘의 업무</strong><small>미션과 진행 보상</small></span>
+        </button>
       </div>
     </div>
   )
+}
+
+function LibraryStationIcon({ kind }: { kind: 'collection' | 'search' | 'mission' }) {
+  if (kind === 'search') return <Search size={19} aria-hidden="true" />
+  if (kind === 'mission') return <ListChecks size={19} aria-hidden="true" />
+  return <Database size={19} aria-hidden="true" />
 }
