@@ -345,7 +345,7 @@ async function getSearchDataset(): Promise<SearchDataset> {
           return time !== undefined && time > latest ? time : latest
         }, 0)
         const baseTime =
-          parseDateValue(meta?.baseDate ?? '') ?? latestRegisteredTime || Date.now()
+          (parseDateValue(meta?.baseDate ?? '') ?? latestRegisteredTime) || Date.now()
         const cutoff = baseTime - (NEW_GENERAL_LOOKBACK_DAYS - 1) * 24 * 60 * 60 * 1000
         newGeneralRows = rows.filter((row) => {
           if (!normalizeText(row.shelfName).includes('종합자료실')) return false
