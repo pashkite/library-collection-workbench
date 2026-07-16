@@ -20,6 +20,25 @@ export function normalizeKdc(value: unknown): string {
   return String(value ?? '').trim().replace(/[^0-9.]/g, '')
 }
 
+export function formatCallNumber(
+  holding: Pick<BookHolding, 'kdc' | 'callNumber'>,
+): string {
+  const kdc = String(holding.kdc ?? '').trim()
+  const callNumber = String(holding.callNumber ?? '').trim()
+
+  if (!kdc) return callNumber
+  if (!callNumber) return kdc
+
+  const normalizedKdc = normalizeKdc(kdc)
+  const callNumberKdc = callNumber.match(/\d{1,3}(?:\.\d+)?/)?.[0]
+
+  if (callNumberKdc && normalizeKdc(callNumberKdc) === normalizedKdc) {
+    return callNumber
+  }
+
+  return `${kdc} ${callNumber}`.replace(/\s+/g, ' ').trim()
+}
+
 export function toStoredHolding(
   holding: BookHolding,
   index: number,
@@ -28,6 +47,7 @@ export function toStoredHolding(
   const normalizedIsbn = normalizeIsbn(holding.isbn)
   return {
     ...holding,
+    callNumber: formatCallNumber(holding),
     id: `${normalizedIsbn || 'no-isbn'}-${normalizeCompact(holding.title).slice(0, 24)}-${index}`,
     normalizedTitle: normalizeText(holding.title),
     normalizedAuthor: normalizeText(holding.author),
