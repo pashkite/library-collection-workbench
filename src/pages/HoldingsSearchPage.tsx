@@ -2,6 +2,7 @@ import {
   BookOpen,
   Building2,
   CalendarDays,
+  ChevronDown,
   Disc3,
   Download,
   Hash,
@@ -22,6 +23,7 @@ import { getHoldingFacetOptions } from '../lib/libraryDbExtras'
 import { useBookCovers } from '../lib/useBookCovers'
 import type { HoldingSearchFilters, HoldingSearchResult, StoredBookHolding } from '../types/library'
 import './HoldingsSearchPage.css'
+import './ShelfMultiSelect.css'
 
 const initialFilters: HoldingSearchFilters = {
   title: '',
@@ -35,6 +37,7 @@ const initialFilters: HoldingSearchFilters = {
 export function HoldingsSearchPage() {
   const { data } = useAppData()
   const [filters, setFilters] = useState(initialFilters)
+  const [selectedShelfNames, setSelectedShelfNames] = useState<string[]>([])
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(50)
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards')
@@ -56,6 +59,10 @@ export function HoldingsSearchPage() {
   const [facetsLoading, setFacetsLoading] = useState(true)
 
   const totalPages = Math.max(1, Math.ceil(result.total / pageSize))
+  const queryFilters = useMemo<HoldingSearchFilters>(
+    () => ({ ...filters, shelfNames: selectedShelfNames }),
+    [filters, selectedShelfNames],
+  )
   const {
     coverLoading,
     coverMessage,
@@ -70,6 +77,12 @@ export function HoldingsSearchPage() {
     const end = Math.min(page * pageSize, result.total)
     return `${start.toLocaleString()}-${end.toLocaleString()} / ${result.total.toLocaleString()}건`
   }, [page, pageSize, result.total])
+  const shelfSelectionLabel = useMemo(() => {
+    if (selectedShelfNames.length === 0) return '전체 자료실'
+    if (selectedShelfNames.length === 1) return selectedShelfNames[0]
+    if (selectedShelfNames.length === 2) return selectedShelfNames.join(', ')
+    return `${selectedShelfNames[0]} 외 ${selectedShelfNames.length - 1}개`
+  }, [selectedShelfNames])
 
   useEffect(() => {
     let canceled = false
@@ -77,7 +90,7 @@ export function HoldingsSearchPage() {
       if (canceled) return
       setLoading(true)
       setError(undefined)
-      void searchHoldings(filters, page, pageSize)
+      void searchHoldings(queryFilters, page, pageSize)
         .then((nextResult) => {
           if (!canceled) setResult(nextResult)
         })
@@ -97,7 +110,7 @@ export function HoldingsSearchPage() {
     return () => {
       canceled = true
     }
-  }, [filters, page, pageSize])
+  }, [queryFilters, page, pageSize])
 
   useEffect(() => {
     let canceled = false
@@ -114,6 +127,14 @@ export function HoldingsSearchPage() {
     }
   }, [data.totalCount])
 
+  useEffect(() => {
+    const availableShelfNames = new Set(facetOptions.shelfNames)
+    setSelectedShelfNames((current) => {
+      const next = current.filter((shelfName) => availableShelfNames.has(shelfName))
+      return next.length === current.length ? current : next
+    })
+  }, [facetOptions.shelfNames])
+
   const updateFilter = <Key extends keyof HoldingSearchFilters>(
     key: Key,
     value: HoldingSearchFilters[Key],
@@ -122,13 +143,30 @@ export function HoldingsSearchPage() {
     setFilters((current) => ({ ...current, [key]: value }))
   }
 
-  const hasActiveFilter = (Object.keys(filters) as Array<keyof HoldingSearchFilters>).some(
-    (key) => filters[key] !== initialFilters[key],
-  )
+  const toggleShelfName = (shelfName: string) => {
+    setPage(1)
+    setSelectedShelfNames((current) =>
+      current.includes(shelfName)
+        ? current.filter((selected) => selected !== shelfName)
+        : [...current, shelfName],
+    )
+  }
+
+  const clearShelfNames = () => {
+    setPage(1)
+    setSelectedShelfNames([])
+  }
+
+  const hasActiveFilter =
+    selectedShelfNames.length > 0 ||
+    (Object.keys(initialFilters) as Array<keyof HoldingSearchFilters>).some(
+      (key) => filters[key] !== initialFilters[key],
+    )
 
   const resetFilters = () => {
     setPage(1)
     setFilters(initialFilters)
+    setSelectedShelfNames([])
   }
 
   const exportAll = async () => {
@@ -148,7 +186,7 @@ export function HoldingsSearchPage() {
   const exportCurrent = async () => {
     setExporting(true)
     try {
-      const rows = await searchHoldings(filters, 1, Math.max(result.total, 1))
+      const rows = await searchHoldings(queryFilters, 1, Math.max(result.total, 1))
       await downloadHoldingsExcel(
         rows.rows,
         `달성군립도서관_소장목록_검색결과_${data.meta?.baseDate ?? 'unknown'}.xlsx`,
@@ -175,19 +213,19 @@ export function HoldingsSearchPage() {
     const chips: string[] = []
     if (filters.materialType === 'book') chips.push('도서자료')
     if (filters.materialType === 'nonbook') chips.push('비도서자료')
-    if (filters.shelfName) chips.push(filters.shelfName)
+    selectedShelfNames.forEach((shelfName) => chips.push(`자료실: ${shelfName}`))
     if (filters.title.trim()) chips.push(`서명: ${filters.title.trim()}`)
     if (filters.author.trim()) chips.push(`저자: ${filters.author.trim()}`)
     if (filters.publisher.trim()) chips.push(`출판사: ${filters.publisher.trim()}`)
     if (filters.isbn.trim()) chips.push(`ISBN: ${filters.isbn.trim()}`)
     return chips
-  }, [filters])
+  }, [filters, selectedShelfNames])
 
   return (
     <div className="page-stack holdings-page">
       <PageHeader
         title="소장도서 조회"
-        description="저장된 소장목록에서 서명·저자·ISBN·자료실 조건으로 바로 찾아보고, 필요한 목록만 엑셀로 내려받습니다."
+        description="저장된 소장목록에서 서명·저자·ISBN·여러 자료실 조건으로 바로 찾아보고, 필요한 목록만 엑셀로 내려받습니다."
         eyebrow="Catalog Search"
         actions={
           <div className="button-row">
@@ -266,26 +304,53 @@ export function HoldingsSearchPage() {
             </select>
           </label>
 
-          <label className="field-card">
+          <div className="field-card shelf-filter-card">
             <span className="field-label">
               <Building2 size={14} aria-hidden="true" />
-              자료실
+              자료실 (복수 선택)
             </span>
-            <select
-              value={filters.shelfName}
-              onChange={(event) => updateFilter('shelfName', event.target.value)}
-              disabled={facetOptions.shelfNames.length === 0}
-            >
-              <option value="">
-                {facetOptions.shelfNames.length === 0 ? '자료실 정보 없음' : '전체 자료실'}
-              </option>
-              {facetOptions.shelfNames.map((shelfName) => (
-                <option key={shelfName} value={shelfName}>
-                  {shelfName}
-                </option>
-              ))}
-            </select>
-          </label>
+            {facetOptions.shelfNames.length > 0 ? (
+              <details className="shelf-multi-select">
+                <summary aria-label={`자료실 선택: ${shelfSelectionLabel}`}>
+                  <span className="shelf-multi-value">{shelfSelectionLabel}</span>
+                  {selectedShelfNames.length > 0 ? (
+                    <span className="shelf-multi-count">{selectedShelfNames.length}개</span>
+                  ) : null}
+                  <ChevronDown size={16} aria-hidden="true" />
+                </summary>
+                <div className="shelf-multi-panel">
+                  <div className="shelf-multi-header">
+                    <strong>자료실 선택</strong>
+                    <button
+                      type="button"
+                      className="shelf-clear-button"
+                      onClick={clearShelfNames}
+                      disabled={selectedShelfNames.length === 0}
+                    >
+                      전체 자료실
+                    </button>
+                  </div>
+                  <div className="shelf-multi-options">
+                    {facetOptions.shelfNames.map((shelfName) => (
+                      <label key={shelfName} className="shelf-multi-option">
+                        <input
+                          type="checkbox"
+                          checked={selectedShelfNames.includes(shelfName)}
+                          onChange={() => toggleShelfName(shelfName)}
+                        />
+                        <span>{shelfName}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p id="shelf-multi-help">
+                    여러 자료실을 선택하면 선택한 곳 중 하나라도 일치하는 자료를 모두 표시합니다.
+                  </p>
+                </div>
+              </details>
+            ) : (
+              <div className="shelf-multi-empty">자료실 정보 없음</div>
+            )}
+          </div>
 
           <label className="field-card field-span-2">
             <span className="field-label">

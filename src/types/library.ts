@@ -159,6 +159,11 @@ export interface HoldingSearchFilters {
   isbn: string
   materialType: 'book' | 'nonbook' | 'all'
   shelfName: string
+  /**
+   * 소장도서 검색 화면에서 사용하는 복수 자료실 필터입니다.
+   * 값이 있으면 shelfName보다 우선하며, 배열 안의 자료실 중 하나와 일치하면 검색됩니다.
+   */
+  shelfNames?: string[]
 }
 
 export interface HoldingSearchResult {
