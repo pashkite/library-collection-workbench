@@ -106,17 +106,47 @@ function readCallNumber(callNumber?: Data4LibraryCallNumber) {
   return readString(callNumber?.call_no || callNumber?.book_code)
 }
 
+function isMeaningfulSeparateShelfName(value: string) {
+  return /(신간|자료실|서가|코너|비치|향토|특화|다문화|만화)/.test(normalizeText(value))
+}
+
 function readShelfName(callNumber?: Data4LibraryCallNumber) {
   const separateShelfName = readString(callNumber?.separate_shelf_name)
   const shelfLocationName = readString(callNumber?.shelf_loc_name)
   const shelfLocationCode = readString(callNumber?.shelf_loc_code)
+  const hasMeaningfulSeparateShelf = isMeaningfulSeparateShelfName(separateShelfName)
 
-  if (!separateShelfName) return shelfLocationName || shelfLocationCode
+  if (!hasMeaningfulSeparateShelf) {
+    return shelfLocationName || shelfLocationCode || separateShelfName
+  }
   if (!shelfLocationName) return separateShelfName
   if (normalizeCompact(separateShelfName).includes(normalizeCompact(shelfLocationName))) {
     return separateShelfName
   }
   return `${separateShelfName} ${shelfLocationName}`.replace(/\s+/g, ' ').trim()
+}
+
+function shelfNameQuality(value: string) {
+  const normalized = normalizeText(value)
+  if (!normalized) return 0
+  if (normalized.includes('신간')) return 6
+  if (/(자료실|서가|도서관|코너|비치예정)/.test(normalized)) return 5
+  if (/^\[[^\]]+\]/.test(value)) return 4
+  if (/^[a-z]{1,4}\d+$/i.test(value) || /^[가-힣]{1,2}$/.test(value)) return 1
+  if (normalized === '적용안함') return 1
+  return 2
+}
+
+function chooseShelfName(existingShelfName: string, incomingShelfName: string) {
+  if (!incomingShelfName) return existingShelfName
+  const existingQuality = shelfNameQuality(existingShelfName)
+  const incomingQuality = shelfNameQuality(incomingShelfName)
+
+  // 현재 API가 구체적인 자료실명을 제공하면 실제 이동도 반영합니다.
+  if (incomingQuality >= 4) return incomingShelfName
+  // 코드나 한 글자 별치값이 기존의 구체적인 자료실명을 덮지 못하게 합니다.
+  if (existingQuality >= 4) return existingShelfName
+  return incomingQuality >= existingQuality ? incomingShelfName : existingShelfName
 }
 
 function findRegistrationNumber(doc: Data4LibraryDoc, callNumber?: Data4LibraryCallNumber): string {
@@ -285,7 +315,7 @@ function refreshExistingHolding(
     id: existing.id,
     dedupeKey: existing.dedupeKey,
     callNumber: incoming.callNumber || existing.callNumber,
-    shelfName: incoming.shelfName || existing.shelfName,
+    shelfName: chooseShelfName(existing.shelfName, incoming.shelfName),
     registeredAt: incoming.registeredAt || existing.registeredAt,
     registrationNumber: incoming.registrationNumber || existing.registrationNumber,
   }
