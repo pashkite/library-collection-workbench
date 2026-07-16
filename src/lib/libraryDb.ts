@@ -39,6 +39,8 @@ interface SearchDataset {
   rows: StoredBookHolding[]
   byShelf: Map<string, StoredBookHolding[]>
   byMaterial: Record<MaterialType, StoredBookHolding[]>
+  newGeneralRows: StoredBookHolding[]
+  estimatedNewGeneralShelf: boolean
 }
 
 interface CachedNewReleaseRows {
@@ -51,6 +53,8 @@ const DB_VERSION = 1
 const META_KEY = 'holdings-meta'
 const STORE_CHUNK_SIZE = 1000
 const MAX_QUERY_CACHE_ENTRIES = 8
+const NEW_GENERAL_SHELF_LABEL = '[신간] 종합자료실'
+const NEW_GENERAL_LOOKBACK_DAYS = 90
 
 let searchDatasetPromise: Promise<SearchDataset> | undefined
 const materialTypeCache = new WeakMap<StoredBookHolding, MaterialType>()
@@ -102,6 +106,11 @@ function newReleaseQueryKey(filters: NewReleaseFilters, baseDate?: string) {
     includeUndated: filters.includeUndated,
     baseDate: baseDate ?? '',
   })
+}
+
+function isNewGeneralShelfName(value: string) {
+  const normalized = normalizeText(value)
+  return normalized.includes('신간') && normalized.includes('종합자료실')
 }
 
 export async function getDb() {
@@ -306,7 +315,7 @@ async function getSearchDataset(): Promise<SearchDataset> {
   if (!searchDatasetPromise) {
     searchDatasetPromise = (async () => {
       const db = await getDb()
-      const rows = await db.getAll('holdings')
+      const [rows, meta] = await Promise.all([db.getAll('holdings'), getStoredMeta()])
       const byShelf = new Map<string, StoredBookHolding[]>()
       const byMaterial: Record<MaterialType, StoredBookHolding[]> = {
         book: [],
@@ -324,7 +333,28 @@ async function getSearchDataset(): Promise<SearchDataset> {
         }
       }
 
-      return { rows, byShelf, byMaterial }
+      const actualNewGeneralRows = [...byShelf.entries()]
+        .filter(([shelfName]) => isNewGeneralShelfName(shelfName))
+        .flatMap(([, shelfRows]) => shelfRows)
+      const estimatedNewGeneralShelf = actualNewGeneralRows.length === 0
+      let newGeneralRows = actualNewGeneralRows
+
+      if (estimatedNewGeneralShelf) {
+        const latestRegisteredTime = rows.reduce((latest, row) => {
+          const time = parseDateValue(row.registeredAt)
+          return time !== undefined && time > latest ? time : latest
+        }, 0)
+        const baseTime =
+          parseDateValue(meta?.baseDate ?? '') ?? latestRegisteredTime || Date.now()
+        const cutoff = baseTime - (NEW_GENERAL_LOOKBACK_DAYS - 1) * 24 * 60 * 60 * 1000
+        newGeneralRows = rows.filter((row) => {
+          if (!normalizeText(row.shelfName).includes('종합자료실')) return false
+          const registeredTime = parseDateValue(row.registeredAt)
+          return registeredTime !== undefined && registeredTime >= cutoff
+        })
+      }
+
+      return { rows, byShelf, byMaterial, newGeneralRows, estimatedNewGeneralShelf }
     })()
   }
 
@@ -338,9 +368,23 @@ function collectionCandidates(
   const shelves = selectedShelfNames(filters)
 
   if (shelves.length > 0) {
-    const shelfRows = shelves.flatMap((shelfName) => dataset.byShelf.get(shelfName) ?? [])
-    if (filters.materialType === 'all') return shelfRows
-    return shelfRows.filter((row) => getCachedMaterialType(row) === filters.materialType)
+    const rows: StoredBookHolding[] = []
+    const seenIds = new Set<string>()
+
+    for (const shelfName of shelves) {
+      const shelfRows =
+        shelfName === NEW_GENERAL_SHELF_LABEL
+          ? dataset.newGeneralRows
+          : dataset.byShelf.get(shelfName) ?? []
+      for (const row of shelfRows) {
+        if (seenIds.has(row.id)) continue
+        seenIds.add(row.id)
+        rows.push(row)
+      }
+    }
+
+    if (filters.materialType === 'all') return rows
+    return rows.filter((row) => getCachedMaterialType(row) === filters.materialType)
   }
 
   if (filters.materialType === 'book') return dataset.byMaterial.book
@@ -350,11 +394,18 @@ function collectionCandidates(
 
 export async function getHoldingFacetSnapshot() {
   const dataset = await getSearchDataset()
+  const shelfNames = [...dataset.byShelf.keys()].filter(
+    (shelfName) => !isNewGeneralShelfName(shelfName),
+  )
+  if (dataset.newGeneralRows.length > 0) shelfNames.push(NEW_GENERAL_SHELF_LABEL)
+
   return {
-    shelfNames: [...dataset.byShelf.keys()].sort((left, right) => left.localeCompare(right, 'ko')),
+    shelfNames: shelfNames.sort((left, right) => left.localeCompare(right, 'ko')),
     bookCount: dataset.byMaterial.book.length,
     nonbookCount: dataset.byMaterial.nonbook.length,
     missingShelfCount: dataset.rows.filter((row) => !row.shelfName).length,
+    estimatedNewGeneralShelf: dataset.estimatedNewGeneralShelf,
+    newGeneralCount: dataset.newGeneralRows.length,
   }
 }
 
@@ -362,22 +413,6 @@ export function getMaterialTypeLabel(
   row: Pick<StoredBookHolding, 'title' | 'author' | 'publisher' | 'callNumber' | 'shelfName' | 'kdc'>,
 ) {
   return getMaterialType(row) === 'nonbook' ? '비도서자료' : '도서자료'
-}
-
-function matchesCollectionFilters(
-  row: StoredBookHolding,
-  filters: Pick<HoldingSearchFilters, 'materialType' | 'shelfName' | 'shelfNames'>,
-) {
-  const shelves = selectedShelfNames(filters)
-  const matchesShelf =
-    shelves.length > 0
-      ? shelves.includes(row.shelfName)
-      : !filters.shelfName || row.shelfName === filters.shelfName
-
-  return (
-    (filters.materialType === 'all' || getCachedMaterialType(row) === filters.materialType) &&
-    matchesShelf
-  )
 }
 
 function dateCutoff(datePreset: NewReleaseFilters['datePreset'], baseDate?: string) {
@@ -427,7 +462,6 @@ export async function searchNewReleases(
       const matched =
         matchedDate &&
         matchedYear &&
-        matchesCollectionFilters(row, filters) &&
         (!normalizedFilters.kdcMajor || rowKdc.startsWith(normalizedFilters.kdcMajor)) &&
         (!normalizedFilters.title || row.normalizedTitle.includes(normalizedFilters.title)) &&
         (!normalizedFilters.author || row.normalizedAuthor.includes(normalizedFilters.author)) &&
