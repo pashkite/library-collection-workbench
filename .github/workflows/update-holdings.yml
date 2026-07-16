@@ -1,6 +1,14 @@
 name: Update holdings JSON
 
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'scripts/updateDailyHoldings.ts'
+      - 'scripts/fetchHoldings.ts'
+      - 'scripts/fetchHoldingsFull.ts'
+      - '.github/workflows/update-holdings.yml'
   schedule:
     # KST 04:10 daily
     - cron: '10 19 * * *'
