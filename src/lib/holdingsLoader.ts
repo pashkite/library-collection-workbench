@@ -3,6 +3,8 @@ import { toStoredHolding } from '../utils/normalize'
 import { getSampleHolding, getStoredMeta, replaceHoldings } from './libraryDb'
 
 const DATA_PATH = `${import.meta.env.BASE_URL}data`
+const CLIENT_FORMAT_KEY = 'holdings-client-format-version'
+const CLIENT_FORMAT_VERSION = '2-full-call-number'
 
 async function fetchJson<T>(path: string, label: string): Promise<T> {
   const response = await fetch(path, { cache: 'no-cache' })
@@ -19,6 +21,22 @@ function isNewerRemote(remote: DataMeta, local?: DataMeta): boolean {
     remote.lastUpdatedAt !== local.lastUpdatedAt ||
     remote.totalCount !== local.totalCount
   )
+}
+
+function usesCurrentClientFormat(): boolean {
+  try {
+    return localStorage.getItem(CLIENT_FORMAT_KEY) === CLIENT_FORMAT_VERSION
+  } catch {
+    return true
+  }
+}
+
+function rememberCurrentClientFormat() {
+  try {
+    localStorage.setItem(CLIENT_FORMAT_KEY, CLIENT_FORMAT_VERSION)
+  } catch {
+    // 저장소 접근이 제한된 환경에서는 다음 원격 데이터 갱신 때 다시 정리합니다.
+  }
 }
 
 function ensurePublicFields(row: BookHolding): BookHolding {
@@ -57,8 +75,9 @@ export async function bootstrapHoldings(
 
   const localMeta = await getStoredMeta()
   const remoteMeta = await fetchJson<DataMeta>(`${DATA_PATH}/holdings.meta.json`, '메타 정보')
+  const needsClientFormatRebuild = !usesCurrentClientFormat()
 
-  if (!isNewerRemote(remoteMeta, localMeta)) {
+  if (!isNewerRemote(remoteMeta, localMeta) && !needsClientFormatRebuild) {
     return {
       meta: localMeta,
       updated: false,
@@ -71,8 +90,9 @@ export async function bootstrapHoldings(
     percent: 20,
     processed: 0,
     total: remoteMeta.totalCount,
-    message:
-      '처음 접속 시 최신 소장목록을 내려받아 브라우저에 저장합니다. 이 작업은 처음 한 번만 시간이 조금 걸릴 수 있으며, 다음부터는 더 빠르게 사용할 수 있습니다.',
+    message: needsClientFormatRebuild
+      ? '청구기호 표시 형식을 갱신하기 위해 소장목록을 한 번 다시 정리합니다.'
+      : '처음 접속 시 최신 소장목록을 내려받아 브라우저에 저장합니다. 이 작업은 처음 한 번만 시간이 조금 걸릴 수 있으며, 다음부터는 더 빠르게 사용할 수 있습니다.',
   })
 
   const downloadedRows = await fetchJson<BookHolding[]>(
@@ -113,6 +133,7 @@ export async function bootstrapHoldings(
       message: '검색과 중복 검토에 사용할 데이터를 IndexedDB에 저장하고 있습니다.',
     })
   })
+  rememberCurrentClientFormat()
 
   onProgress({
     stage: '검색용 색인 생성 중...',
