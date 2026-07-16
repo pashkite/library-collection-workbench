@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'scripts/updateDailyHoldings.ts'
+      - 'scripts/dailyHoldingsUpdater.ts'
       - 'scripts/fetchHoldings.ts'
       - 'scripts/fetchHoldingsFull.ts'
       - '.github/workflows/update-holdings.yml'
@@ -24,7 +25,9 @@ jobs:
       DATA4LIBRARY_KEY: ${{ secrets.DATA4LIBRARY_KEY }}
       LIB_CODE: ${{ vars.LIB_CODE || 'sample' }}
       LIB_NAME: ${{ vars.LIB_NAME || '달성군립도서관' }}
-      DAILY_LOOKBACK_DAYS: ${{ vars.DAILY_LOOKBACK_DAYS || '7' }}
+      # 수집 코드가 바뀐 직후에는 신간 조회 기본 범위와 같은 90일을 다시 읽어
+      # 누락된 별치·소장 위치를 복구하고, 평소 예약 실행은 기존 7일 범위를 유지합니다.
+      DAILY_LOOKBACK_DAYS: ${{ github.event_name == 'push' && '90' || vars.DAILY_LOOKBACK_DAYS || '7' }}
       PAGE_SIZE: ${{ vars.PAGE_SIZE || '300' }}
       API_CALL_LIMIT: '450'
     steps:
