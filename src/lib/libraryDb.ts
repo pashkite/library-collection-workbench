@@ -134,7 +134,8 @@ export async function searchHoldings(
       normalizedFilters.author ||
       normalizedFilters.publisher ||
       normalizedFilters.isbn ||
-      filters.shelfName,
+      filters.shelfName ||
+      filters.shelfNames?.length,
   )
 
   if (!hasTextFilters && filters.materialType === 'all') {
@@ -230,11 +231,17 @@ export function getMaterialTypeLabel(
 
 function matchesCollectionFilters(
   row: StoredBookHolding,
-  filters: Pick<HoldingSearchFilters, 'materialType' | 'shelfName'>,
+  filters: Pick<HoldingSearchFilters, 'materialType' | 'shelfName' | 'shelfNames'>,
 ) {
+  const selectedShelfNames = filters.shelfNames?.filter(Boolean) ?? []
+  const matchesShelf =
+    selectedShelfNames.length > 0
+      ? selectedShelfNames.includes(row.shelfName)
+      : !filters.shelfName || row.shelfName === filters.shelfName
+
   return (
     (filters.materialType === 'all' || getMaterialType(row) === filters.materialType) &&
-    (!filters.shelfName || row.shelfName === filters.shelfName)
+    matchesShelf
   )
 }
 
