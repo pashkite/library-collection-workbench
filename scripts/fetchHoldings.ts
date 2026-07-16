@@ -91,10 +91,24 @@ function readCallNumber(callNumber?: Data4LibraryCallNumber) {
   return String(callNumber?.call_no || callNumber?.book_code || '').trim()
 }
 
+function compactShelfName(value: string) {
+  return value
+    .normalize('NFKC')
+    .toLowerCase()
+    .replace(/[\s\-_:./]/g, '')
+}
+
 function readShelfName(callNumber?: Data4LibraryCallNumber) {
-  return String(
-    callNumber?.shelf_loc_name || callNumber?.separate_shelf_name || callNumber?.shelf_loc_code || '',
-  ).trim()
+  const separateShelfName = String(callNumber?.separate_shelf_name || '').trim()
+  const shelfLocationName = String(callNumber?.shelf_loc_name || '').trim()
+  const shelfLocationCode = String(callNumber?.shelf_loc_code || '').trim()
+
+  if (!separateShelfName) return shelfLocationName || shelfLocationCode
+  if (!shelfLocationName) return separateShelfName
+  if (compactShelfName(separateShelfName).includes(compactShelfName(shelfLocationName))) {
+    return separateShelfName
+  }
+  return `${separateShelfName} ${shelfLocationName}`.replace(/\s+/g, ' ').trim()
 }
 
 function sanitizeDoc(doc: Data4LibraryDoc): BookHolding {
