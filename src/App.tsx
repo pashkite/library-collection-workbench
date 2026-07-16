@@ -1,48 +1,35 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { HashRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { ErrorNotice } from './components/ErrorNotice'
+import { Layout } from './components/Layout'
 import { LoadingScreen } from './components/LoadingScreen'
-import { StatusFooter } from './game/components/StatusFooter'
-import { TopNav } from './game/components/TopNav'
-import { BookDetailPage } from './game/pages/BookDetailPage'
-import { CollectionPage } from './game/pages/CollectionPage'
-import { InventoryPage } from './game/pages/InventoryPage'
-import { LobbyPage } from './game/pages/LobbyPage'
-import { MissionsPage } from './game/pages/MissionsPage'
-import { SearchPage } from './game/pages/SearchPage'
-import { ShelvingPage } from './game/pages/ShelvingPage'
-import { StatsSettingsPage } from './game/pages/StatsSettingsPage'
-import { useGameStore } from './game/store/useGameStore'
-import type { PageId } from './game/types'
 import { AppDataContext } from './lib/AppDataContext'
 import { bootstrapHoldings } from './lib/holdingsLoader'
 import { getStoredDataInfo } from './lib/libraryDb'
 import type { AppDataState, BootstrapProgress, DataMeta, StoredBookHolding } from './types/library'
-import './game/styles/global.css'
 import './index.css'
+import './gallery.css'
 
-const ThreeScene = lazy(() =>
-  import('./game/components/ThreeScene').then((m) => ({ default: m.ThreeScene })),
-)
+const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
 const HoldingsSearchPage = lazy(() =>
-  import('./pages/HoldingsSearchPage').then((m) => ({ default: m.HoldingsSearchPage })),
+  import('./pages/HoldingsSearchPage').then((module) => ({ default: module.HoldingsSearchPage })),
 )
 const NewReleasesPage = lazy(() =>
-  import('./pages/NewReleasesPage').then((m) => ({ default: m.NewReleasesPage })),
+  import('./pages/NewReleasesPage').then((module) => ({ default: module.NewReleasesPage })),
 )
 const PurchaseReviewPage = lazy(() =>
-  import('./pages/PurchaseReviewPage').then((m) => ({ default: m.PurchaseReviewPage })),
+  import('./pages/PurchaseReviewPage').then((module) => ({ default: module.PurchaseReviewPage })),
 )
 const SelectionBasisPage = lazy(() =>
-  import('./pages/SelectionBasisPage').then((m) => ({ default: m.SelectionBasisPage })),
+  import('./pages/SelectionBasisPage').then((module) => ({ default: module.SelectionBasisPage })),
 )
 const AladinDetailPage = lazy(() =>
-  import('./pages/AladinDetailPage').then((m) => ({ default: m.AladinDetailPage })),
+  import('./pages/AladinDetailPage').then((module) => ({ default: module.AladinDetailPage })),
 )
 const SettingsPage = lazy(() =>
-  import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
+  import('./pages/SettingsPage').then((module) => ({ default: module.SettingsPage })),
 )
-const HelpPage = lazy(() => import('./pages/HelpPage').then((m) => ({ default: m.HelpPage })))
+const HelpPage = lazy(() => import('./pages/HelpPage').then((module) => ({ default: module.HelpPage })))
 
 type BootstrapState =
   | { status: 'checking'; progress: BootstrapProgress; sampleBook?: StoredBookHolding }
@@ -69,119 +56,11 @@ const initialProgress: BootstrapProgress = {
   message: '소장목록을 준비하고 있습니다.',
 }
 
-const pathToPage: Record<string, PageId> = {
-  '/': 'lobby',
-  '/game/collection': 'collection',
-  '/game/search': 'search',
-  '/game/detail': 'detail',
-  '/game/shelving': 'shelving',
-  '/game/missions': 'missions',
-  '/game/inventory': 'inventory',
-  '/game/stats': 'stats',
-}
-
-function WorkPanel({ children, title }: { children: ReactNode; title: string }) {
-  const navigate = useNavigate()
-  const setPage = useGameStore((s) => s.setPage)
+function RouteFallback() {
   return (
-    <div className="page-enter work-panel-wrap">
-      <div className="work-panel-bar glass-strong">
-        <div>
-          <p className="eyebrow">실무 도구 · Live Holdings</p>
-          <h2>{title}</h2>
-        </div>
-        <button
-          type="button"
-          className="game-button ghost"
-          onClick={() => {
-            setPage('lobby')
-            navigate('/')
-          }}
-        >
-          로비로 돌아가기
-        </button>
-      </div>
-      <div className="work-panel-body glass">{children}</div>
-    </div>
-  )
-}
-
-function GamePage() {
-  const page = useGameStore((s) => s.page)
-  const setPage = useGameStore((s) => s.setPage)
-  const location = useLocation()
-
-  useEffect(() => {
-    const matched = pathToPage[location.pathname]
-    if (matched && matched !== page) setPage(matched)
-  }, [location.pathname, page, setPage])
-
-  switch (page) {
-    case 'lobby':
-      return <LobbyPage />
-    case 'collection':
-      return <CollectionPage />
-    case 'search':
-      return <SearchPage />
-    case 'detail':
-      return <BookDetailPage />
-    case 'shelving':
-      return <ShelvingPage />
-    case 'missions':
-      return <MissionsPage />
-    case 'inventory':
-      return <InventoryPage />
-    case 'stats':
-      return <StatsSettingsPage />
-    default:
-      return <LobbyPage />
-  }
-}
-
-function GameShell({ children }: { children: ReactNode }) {
-  const toast = useGameStore((s) => s.toast)
-  const setToast = useGameStore((s) => s.setToast)
-  const page = useGameStore((s) => s.page)
-  const navigate = useNavigate()
-
-  useEffect(() => {
-    if (!toast) return
-    const t = window.setTimeout(() => setToast(null), 2200)
-    return () => window.clearTimeout(t)
-  }, [toast, setToast])
-
-  return (
-    <div className="app-shell game-app" data-page={page}>
-      <Suspense fallback={null}>
-        <ThreeScene />
-      </Suspense>
-      <div className="ui-layer">
-        <TopNav />
-        <main className="page-viewport">{children}</main>
-        <StatusFooter />
-        <div className="work-dock glass-strong" aria-label="실무 바로가기">
-          <button type="button" className="game-button ghost" onClick={() => navigate('/holdings')}>
-            실무 소장검색
-          </button>
-          <button type="button" className="game-button ghost" onClick={() => navigate('/new-releases')}>
-            신간
-          </button>
-          <button type="button" className="game-button ghost" onClick={() => navigate('/purchase-review')}>
-            구입검토
-          </button>
-          <button type="button" className="game-button ghost" onClick={() => navigate('/selection-basis')}>
-            선정근거
-          </button>
-          <button type="button" className="game-button ghost" onClick={() => navigate('/aladin')}>
-            알라딘
-          </button>
-          <button type="button" className="game-button ghost" onClick={() => navigate('/settings')}>
-            실무설정
-          </button>
-        </div>
-      </div>
-      {toast ? <div className="toast">{toast}</div> : null}
-    </div>
+    <section className="panel route-loading" role="status" aria-live="polite">
+      화면을 불러오는 중입니다.
+    </section>
   )
 }
 
@@ -322,109 +201,21 @@ function App() {
   return (
     <AppDataContext.Provider value={contextValue}>
       <HashRouter>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <GameShell>
-                <GamePage />
-              </GameShell>
-            }
-          />
-          <Route
-            path="/game/:section"
-            element={
-              <GameShell>
-                <GamePage />
-              </GameShell>
-            }
-          />
-          <Route
-            path="/holdings"
-            element={
-              <GameShell>
-                <WorkPanel title="소장도서 조회 (실데이터)">
-                  <Suspense fallback={<p className="muted">실무 화면 로딩 중...</p>}>
-                    <HoldingsSearchPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route
-            path="/new-releases"
-            element={
-              <GameShell>
-                <WorkPanel title="신간도서 조회">
-                  <Suspense fallback={<p className="muted">로딩 중...</p>}>
-                    <NewReleasesPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route
-            path="/purchase-review"
-            element={
-              <GameShell>
-                <WorkPanel title="구입 후보 검토">
-                  <Suspense fallback={<p className="muted">로딩 중...</p>}>
-                    <PurchaseReviewPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route
-            path="/selection-basis"
-            element={
-              <GameShell>
-                <WorkPanel title="도서 선정 근거 확인">
-                  <Suspense fallback={<p className="muted">로딩 중...</p>}>
-                    <SelectionBasisPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route
-            path="/aladin"
-            element={
-              <GameShell>
-                <WorkPanel title="알라딘 상세정보">
-                  <Suspense fallback={<p className="muted">로딩 중...</p>}>
-                    <AladinDetailPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route
-            path="/settings"
-            element={
-              <GameShell>
-                <WorkPanel title="실무 설정">
-                  <Suspense fallback={<p className="muted">로딩 중...</p>}>
-                    <SettingsPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route
-            path="/help"
-            element={
-              <GameShell>
-                <WorkPanel title="도움말">
-                  <Suspense fallback={<p className="muted">로딩 중...</p>}>
-                    <HelpPage />
-                  </Suspense>
-                </WorkPanel>
-              </GameShell>
-            }
-          />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Layout>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/holdings" element={<HoldingsSearchPage />} />
+              <Route path="/new-releases" element={<NewReleasesPage />} />
+              <Route path="/purchase-review" element={<PurchaseReviewPage />} />
+              <Route path="/selection-basis" element={<SelectionBasisPage />} />
+              <Route path="/aladin" element={<AladinDetailPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/help" element={<HelpPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </Layout>
       </HashRouter>
     </AppDataContext.Provider>
   )
