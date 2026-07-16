@@ -1,6 +1,6 @@
 {
   "baseDate": "2026-07-16",
-  "lastUpdatedAt": "2026-07-15T20:17:11.174Z",
+  "lastUpdatedAt": "2026-07-16T06:23:40.258Z",
   "totalCount": 113527,
   "libraryCode": "127081",
   "libraryName": "달성군립도서관",
@@ -23,7 +23,7 @@
   "titleMissingCount": 0,
   "callNumberMissingCount": 168,
   "registeredAtMissingCount": 0,
-  "dailyCheckAt": "2026-07-15T20:17:11.174Z",
+  "dailyCheckAt": "2026-07-16T06:23:40.258Z",
   "dailyLookbackDays": 7,
   "registrationNumberAvailable": false,
   "lastRegistrationNumber": ""
