@@ -111,9 +111,16 @@ function readCallNumber(callNumber?: Data4LibraryCallNumber) {
 }
 
 function readShelfName(callNumber?: Data4LibraryCallNumber) {
-  return readString(
-    callNumber?.shelf_loc_name || callNumber?.separate_shelf_name || callNumber?.shelf_loc_code,
-  )
+  const separateShelfName = readString(callNumber?.separate_shelf_name)
+  const shelfLocationName = readString(callNumber?.shelf_loc_name)
+  const shelfLocationCode = readString(callNumber?.shelf_loc_code)
+
+  if (!separateShelfName) return shelfLocationName || shelfLocationCode
+  if (!shelfLocationName) return separateShelfName
+  if (normalizeCompact(separateShelfName).includes(normalizeCompact(shelfLocationName))) {
+    return separateShelfName
+  }
+  return `${separateShelfName} ${shelfLocationName}`.replace(/\s+/g, ' ').trim()
 }
 
 function findRegistrationNumber(doc: Data4LibraryDoc, callNumber?: Data4LibraryCallNumber): string {
@@ -227,6 +234,38 @@ function normalizeExistingHolding(row: BookHolding, index: number, meta?: DataMe
   }
 }
 
+function holdingContentChanged(left: StandardHolding, right: StandardHolding) {
+  return (
+    left.libraryName !== right.libraryName ||
+    left.title !== right.title ||
+    left.author !== right.author ||
+    left.publisher !== right.publisher ||
+    left.publicationYear !== right.publicationYear ||
+    left.isbn !== right.isbn ||
+    left.kdc !== right.kdc ||
+    left.callNumber !== right.callNumber ||
+    left.shelfName !== right.shelfName ||
+    left.registeredAt !== right.registeredAt ||
+    left.registrationNumber !== right.registrationNumber
+  )
+}
+
+function refreshExistingHolding(
+  existing: StandardHolding,
+  incoming: StandardHolding,
+): StandardHolding {
+  return {
+    ...existing,
+    ...incoming,
+    id: existing.id,
+    dedupeKey: existing.dedupeKey,
+    callNumber: incoming.callNumber || existing.callNumber,
+    shelfName: incoming.shelfName || existing.shelfName,
+    registeredAt: incoming.registeredAt || existing.registeredAt,
+    registrationNumber: incoming.registrationNumber || existing.registrationNumber,
+  }
+}
+
 function getDocs(payload: Data4LibraryResponse): Data4LibraryDoc[] {
   const docs = payload.response?.docs
   if (Array.isArray(docs)) return docs.flatMap((entry) => asArray(entry.doc))
@@ -275,7 +314,11 @@ async function fetchDailyRows(authKey: string, libCode: string, libraryName: str
     const payload = await fetchPage(authKey, libCode, pageNo, PAGE_SIZE, startDt, endDt)
     apiCallCount += 1
     const offset = rows.length
-    rows.push(...getDocs(payload).map((doc, index) => standardizeDoc(doc, offset + index, libCode, libraryName)))
+    rows.push(
+      ...getDocs(payload).map((doc, index) =>
+        standardizeDoc(doc, offset + index, libCode, libraryName),
+      ),
+    )
   }
 
   return { rows, expectedTotal, apiCallCount, startDt, endDt }
@@ -326,42 +369,53 @@ async function main() {
   const libraryName = CONFIG_LIB_NAME || '공공도서관'
 
   if (!authKey) {
-    throw new Error('정보나루 인증키(DATA4LIBRARY_KEY/LIBRARY_NARU_AUTH_KEY)가 없어 일일 수집을 실행할 수 없습니다.')
+    throw new Error(
+      '정보나루 인증키(DATA4LIBRARY_KEY/LIBRARY_NARU_AUTH_KEY)가 없어 일일 수집을 실행할 수 없습니다.',
+    )
   }
   if (!libCode || libCode === 'sample') {
-    throw new Error('도서관 코드(LIB_CODE/DALSEONG_LIBRARY_CODE)가 없거나 sample입니다. 실제 도서관 코드를 설정하세요.')
+    throw new Error(
+      '도서관 코드(LIB_CODE/DALSEONG_LIBRARY_CODE)가 없거나 sample입니다. 실제 도서관 코드를 설정하세요.',
+    )
   }
 
   const previousRows = (await readJson<BookHolding[]>(LATEST_PATH)).map((row, index) =>
     normalizeExistingHolding(row, index),
   )
   const previousMeta = await readJson<DataMeta>(META_PATH)
-  const previousByKey = new Map(previousRows.map((row) => [row.dedupeKey, row]))
-  const { rows: dailyRows, expectedTotal, apiCallCount, startDt, endDt } = await fetchDailyRows(
-    authKey,
-    libCode,
-    libraryName,
-  )
+  const mergedByKey = new Map(previousRows.map((row) => [row.dedupeKey, row]))
+  const { rows: dailyRows, expectedTotal, apiCallCount, startDt, endDt } =
+    await fetchDailyRows(authKey, libCode, libraryName)
 
   let duplicateSkippedCount = 0
+  let refreshedCount = 0
   const additions: StandardHolding[] = []
+
   for (const row of dailyRows) {
-    if (previousByKey.has(row.dedupeKey)) {
+    const existing = mergedByKey.get(row.dedupeKey)
+
+    if (existing) {
       duplicateSkippedCount += 1
+      const refreshed = refreshExistingHolding(existing, row)
+      if (holdingContentChanged(existing, refreshed)) {
+        mergedByKey.set(row.dedupeKey, refreshed)
+        refreshedCount += 1
+      }
       continue
     }
-    previousByKey.set(row.dedupeKey, row)
+
+    mergedByKey.set(row.dedupeKey, row)
     additions.push(row)
   }
 
-  if (additions.length === 0) {
+  if (additions.length === 0 && refreshedCount === 0) {
     console.log(
-      `최근 ${DAILY_LOOKBACK_DAYS}일(${startDt}~${endDt}) 신규 소장자료가 없습니다. API 호출 ${apiCallCount}회.`,
+      `최근 ${DAILY_LOOKBACK_DAYS}일(${startDt}~${endDt}) 신규·변경 소장자료가 없습니다. API 호출 ${apiCallCount}회.`,
     )
     return
   }
 
-  const mergedRows = [...previousRows, ...additions]
+  const mergedRows = [...mergedByKey.values()]
   const now = new Date().toISOString()
   const lastRegistrationNumber =
     [...dailyRows].reverse().find((row) => row.registrationNumber)?.registrationNumber ?? ''
@@ -389,11 +443,13 @@ async function main() {
     registrationNumberAvailable: dailyRows.some((row) => row.registrationNumber),
     lastRegistrationNumber,
     dedupeStrategy: DEDUPE_STRATEGY,
-    message: `최근 ${DAILY_LOOKBACK_DAYS}일(${startDt}~${endDt}) 등록자료 ${dailyRows.length}건 중 신규 ${additions.length}건을 병합했습니다.`,
+    message: `최근 ${DAILY_LOOKBACK_DAYS}일(${startDt}~${endDt}) 등록자료 ${dailyRows.length}건 중 신규 ${additions.length}건, 기존 정보 갱신 ${refreshedCount}건을 반영했습니다.`,
   }
 
   await safeWrite(mergedRows, nextMeta)
-  console.log(`신규 소장자료 ${additions.length}건을 병합했습니다. API 호출 ${apiCallCount}회.`)
+  console.log(
+    `신규 ${additions.length}건, 기존 정보 갱신 ${refreshedCount}건을 반영했습니다. API 호출 ${apiCallCount}회.`,
+  )
 }
 
 main().catch((error) => {
