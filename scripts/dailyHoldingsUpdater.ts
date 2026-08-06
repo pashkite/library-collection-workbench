@@ -372,7 +372,10 @@ async function fetchPage(
         lastError.name === 'TimeoutError' ||
         lastError.name === 'AbortError'
 
-      if (status === undefined && !isNetworkOrTimeoutError) throw lastError
+      const isRetryableHttpError =
+        status !== undefined && RETRYABLE_HTTP_STATUSES.has(status)
+
+      if (!isRetryableHttpError && !isNetworkOrTimeoutError) throw lastError
     }
 
     if (attempt >= MAX_FETCH_ATTEMPTS) throw lastError
