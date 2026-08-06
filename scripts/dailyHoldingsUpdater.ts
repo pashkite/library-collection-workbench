@@ -14,6 +14,10 @@ const API_URL = 'https://data4library.kr/api/itemSrch'
 const PAGE_SIZE = Number(getEnv('PAGE_SIZE') ?? 300)
 const DAILY_LOOKBACK_DAYS = Number(getEnv('DAILY_LOOKBACK_DAYS') ?? 7)
 const API_CALL_LIMIT = Number(getEnv('API_CALL_LIMIT') ?? 450)
+const REQUEST_TIMEOUT_MS = Number(getEnv('REQUEST_TIMEOUT_MS') ?? 75_000)
+const MAX_FETCH_ATTEMPTS = Number(getEnv('MAX_FETCH_ATTEMPTS') ?? 4)
+const RETRY_DELAYS_MS = [5_000, 15_000, 30_000]
+const RETRYABLE_HTTP_STATUSES = new Set([429, 500, 502, 503, 504])
 const CONFIG_LIB_CODE = getEnv('LIB_CODE', 'DALSEONG_LIBRARY_CODE') ?? ''
 const CONFIG_LIB_NAME = getEnv('LIB_NAME', 'DALSEONG_LIBRARY_NAME', 'LIBRARY_NAME') ?? ''
 const DEDUPE_STRATEGY =
@@ -344,9 +348,43 @@ async function fetchPage(
   url.searchParams.set('pageSize', String(pageSize))
   url.searchParams.set('format', 'json')
 
-  const response = await fetch(url)
-  if (!response.ok) throw new Error(`정보나루 API 호출 실패: HTTP ${response.status}`)
-  return (await response.json()) as Data4LibraryResponse
+  let lastError: Error | undefined
+
+  for (let attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt += 1) {
+    let status: number | undefined
+
+    try {
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
+      status = response.status
+
+      if (response.ok) {
+        return (await response.json()) as Data4LibraryResponse
+      }
+
+      lastError = new Error(`정보나루 API 호출 실패: HTTP ${response.status}`)
+      if (!RETRYABLE_HTTP_STATUSES.has(response.status)) throw lastError
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      const isNetworkOrTimeoutError =
+        error instanceof TypeError ||
+        lastError.name === 'TimeoutError' ||
+        lastError.name === 'AbortError'
+
+      if (status === undefined && !isNetworkOrTimeoutError) throw lastError
+    }
+
+    if (attempt >= MAX_FETCH_ATTEMPTS) throw lastError
+
+    const delayMs = RETRY_DELAYS_MS[Math.min(attempt - 1, RETRY_DELAYS_MS.length - 1)]
+    console.warn(
+      `정보나루 API 요청 실패(page=${pageNo}, range=${startDt}~${endDt}, attempt=${attempt}/${MAX_FETCH_ATTEMPTS}): ${lastError.message}. ${delayMs / 1_000}초 후 재시도합니다.`,
+    )
+    await new Promise((resolve) => setTimeout(resolve, delayMs))
+  }
+
+  throw lastError ?? new Error('정보나루 API 호출에 실패했습니다.')
 }
 
 async function fetchDailyRows(authKey: string, libCode: string, libraryName: string) {
