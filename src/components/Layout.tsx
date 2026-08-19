@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from 'react'
-import { useState, type ComponentType } from 'react'
+import { useState } from 'react'
 import {
   Bookmark,
   BookOpen,
@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAppData } from '../lib/AppDataContext'
@@ -19,7 +20,7 @@ import { useAppData } from '../lib/AppDataContext'
 type NavItem = {
   to: string
   label: string
-  icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean }>
+  icon: LucideIcon
 }
 
 const navItems: NavItem[] = [
