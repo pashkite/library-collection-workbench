@@ -2,7 +2,7 @@ import { Database, Download, RefreshCw, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { PageHeader } from '../components/PageHeader'
 import { useAppData } from '../lib/AppDataContext'
-import { downloadJsonBackup } from '../lib/excel'
+import { downloadHoldingsExcel, downloadJsonBackup } from '../lib/excel'
 import { clearHoldingsCache, getAllHoldings, getStoredDataInfo, resetAllData } from '../lib/libraryDb'
 import { getAladinKey, getStorageEstimate, setAladinKey } from '../lib/settingsStorage'
 import type { DataMeta } from '../types/library'
@@ -59,6 +59,11 @@ export function SettingsPage() {
     downloadJsonBackup(rows, `holdings_backup_${meta?.baseDate ?? 'unknown'}.json`)
   }
 
+  const backupExcel = async () => {
+    const rows = await getAllHoldings()
+    await downloadHoldingsExcel(rows, `holdings_backup_${meta?.baseDate ?? 'unknown'}.xlsx`, meta)
+  }
+
   return (
     <div className="page-stack">
       <PageHeader
@@ -106,6 +111,10 @@ export function SettingsPage() {
             <button type="button" className="secondary-button" onClick={() => void backupJson()} disabled={count === 0}>
               <Download size={16} aria-hidden="true" />
               JSON 백업
+            </button>
+            <button type="button" className="secondary-button" onClick={() => void backupExcel()} disabled={count === 0}>
+              <Download size={16} aria-hidden="true" />
+              엑셀 백업
             </button>
             <button type="button" className="danger-button" onClick={() => void clearCache()}>
               <Trash2 size={16} aria-hidden="true" />
