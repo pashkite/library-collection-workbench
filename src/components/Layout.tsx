@@ -1,32 +1,50 @@
 import type { PropsWithChildren } from 'react'
-import { useState } from 'react'
-import { Library, Menu, X } from 'lucide-react'
+import { useState, type ComponentType } from 'react'
+import {
+  Bookmark,
+  BookOpen,
+  CircleHelp,
+  ClipboardList,
+  Home,
+  KeyRound,
+  Library,
+  Menu,
+  Search,
+  Settings,
+  X,
+} from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
 import { useAppData } from '../lib/AppDataContext'
 
-const navItems = [
-  { to: '/', label: '장서 홈' },
-  { to: '/holdings', label: '소장도서' },
-  { to: '/new-releases', label: '신간도서' },
-  { to: '/purchase-review', label: '구입검토' },
-  { to: '/selection-basis', label: '선정근거' },
-  { to: '/aladin', label: '알라딘 조회' },
-  { to: '/settings', label: '설정' },
-  { to: '/help', label: '도움말' },
+type NavItem = {
+  to: string
+  label: string
+  icon: ComponentType<{ size?: number; 'aria-hidden'?: boolean }>
+}
+
+const navItems: NavItem[] = [
+  { to: '/', label: '홈', icon: Home },
+  { to: '/holdings', label: '소장목록 검색', icon: Search },
+  { to: '/new-releases', label: '신간', icon: BookOpen },
+  { to: '/purchase-review', label: '구입후보 검토', icon: ClipboardList },
+  { to: '/selection-basis', label: '선정근거', icon: Bookmark },
+  { to: '/aladin', label: '알라딘 조회', icon: KeyRound },
+  { to: '/settings', label: '설정', icon: Settings },
+  { to: '/help', label: '도움말', icon: CircleHelp },
 ]
 
 function getStatusLabel(status?: string) {
   switch (status) {
     case 'ready':
-      return '데이터 정상'
+      return '정상'
     case 'updating':
-      return '데이터 갱신 중'
+      return '갱신 중'
     case 'failed':
-      return '데이터 확인 필요'
+      return '확인 필요'
     case 'sample':
       return '샘플 데이터'
     default:
-      return '데이터 대기 중'
+      return '대기 중'
   }
 }
 
@@ -38,81 +56,92 @@ export function Layout({ children }: PropsWithChildren) {
   const statusClass = data.meta?.status === 'failed' ? 'is-warning' : data.meta?.status === 'ready' ? 'is-ready' : ''
 
   return (
-    <div className="gallery-app">
-      <header className="gallery-site-header">
-        <div className="gallery-utility-bar">
-          <div className="site-width gallery-utility-inner">
-            <span>도서관 장서 업무 보조</span>
-            <span>
-              {libraryName} · 기준일 {data.meta?.baseDate ?? '-'} · {data.totalCount.toLocaleString()}권
+    <div className="workbench-shell">
+      <aside className={`workbench-sidebar${mobileNavOpen ? ' is-open' : ''}`}>
+        <div className="workbench-sidebar-head">
+          <Link className="workbench-brand" to="/" onClick={() => setMobileNavOpen(false)}>
+            <span className="workbench-brand-mark" aria-hidden="true">
+              <Library size={22} />
             </span>
-          </div>
-        </div>
-
-        <div className="site-width gallery-brand-row">
-          <Link className="gallery-logo" to="/" onClick={() => setMobileNavOpen(false)}>
-            <span className="gallery-logo-mark" aria-hidden="true">
-              <Library size={25} />
-            </span>
-            <span className="gallery-logo-copy">
-              <strong>장서업무 갤러리</strong>
-              <small>LIBRARY COLLECTION BOARD</small>
-            </span>
+            <strong>도서관 장서 워크벤치</strong>
           </Link>
-
-          <div className={`gallery-data-status ${statusClass}`}>
-            <span className="gallery-status-dot" aria-hidden="true" />
-            <span>{statusLabel}</span>
-          </div>
-
           <button
             type="button"
-            className="gallery-menu-button"
-            aria-expanded={mobileNavOpen}
-            aria-controls="gallery-main-navigation"
-            aria-label={mobileNavOpen ? '메뉴 닫기' : '메뉴 열기'}
-            onClick={() => setMobileNavOpen((value) => !value)}
+            className="workbench-sidebar-close"
+            aria-label="메뉴 닫기"
+            onClick={() => setMobileNavOpen(false)}
           >
-            {mobileNavOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
+            <X size={20} aria-hidden="true" />
           </button>
         </div>
 
-        <nav
-          id="gallery-main-navigation"
-          className={`gallery-main-navigation${mobileNavOpen ? ' is-open' : ''}`}
-          aria-label="주요 업무 메뉴"
-        >
-          <div className="site-width gallery-nav-inner">
-            {navItems.map((item) => (
+        <nav className="workbench-nav" aria-label="주요 업무 메뉴">
+          {navItems.map((item) => {
+            const Icon = item.icon
+            return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === '/'}
                 onClick={() => setMobileNavOpen(false)}
               >
-                {item.label}
+                <Icon size={19} aria-hidden="true" />
+                <span>{item.label}</span>
               </NavLink>
-            ))}
-          </div>
+            )
+          })}
         </nav>
-      </header>
 
-      {data.warning ? (
-        <div className="gallery-warning-bar" role="status">
-          <div className="site-width">{data.warning}</div>
+        <div className="workbench-sidebar-foot">
+          <div className={`workbench-library-status ${statusClass}`}>
+            <div>
+              <strong>{libraryName}</strong>
+              <span>{data.meta?.libraryCode ?? '도서관 코드 없음'}</span>
+            </div>
+            <span className="workbench-status-line">
+              <i aria-hidden="true" />
+              {statusLabel}
+            </span>
+          </div>
         </div>
+      </aside>
+
+      {mobileNavOpen ? (
+        <button
+          type="button"
+          className="workbench-sidebar-scrim"
+          aria-label="메뉴 닫기"
+          onClick={() => setMobileNavOpen(false)}
+        />
       ) : null}
 
-      <div className="site-width gallery-content-wrap">
-        <main className="gallery-main">{children}</main>
-      </div>
+      <div className="workbench-main-shell">
+        <header className="workbench-mobile-header">
+          <button
+            type="button"
+            className="workbench-menu-button"
+            aria-expanded={mobileNavOpen}
+            aria-label="메뉴 열기"
+            onClick={() => setMobileNavOpen(true)}
+          >
+            <Menu size={20} aria-hidden="true" />
+          </button>
+          <Link className="workbench-mobile-brand" to="/">
+            <Library size={20} aria-hidden="true" />
+            <strong>장서 워크벤치</strong>
+          </Link>
+          <span className={`workbench-mobile-status ${statusClass}`} aria-label={`데이터 상태 ${statusLabel}`} />
+        </header>
 
-      <footer className="gallery-footer">
-        <div className="site-width">
-          <strong>장서업무 갤러리</strong>
-          <span>소장 · 신간 · 구입 · 선정 업무를 위한 내부 업무 보조 화면</span>
-        </div>
-      </footer>
+        {data.warning ? <div className="workbench-warning" role="status">{data.warning}</div> : null}
+
+        <main className="workbench-main">{children}</main>
+
+        <footer className="workbench-footer">
+          <span>Library Collection Workbench</span>
+          <span>기준일 {data.meta?.baseDate ?? '-'} · {data.totalCount.toLocaleString()}권</span>
+        </footer>
+      </div>
     </div>
   )
 }
