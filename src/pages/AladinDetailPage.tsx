@@ -1,5 +1,6 @@
 import { BookOpen, ExternalLink, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { ErrorNotice } from '../components/ErrorNotice'
 import { PageHeader } from '../components/PageHeader'
 import { clearAladinCache, lookupAladinDetail } from '../lib/aladin'
@@ -11,7 +12,8 @@ function formatPrice(value?: number) {
 }
 
 export function AladinDetailPage() {
-  const [isbn, setIsbn] = useState('')
+  const [params] = useSearchParams()
+  const [isbn, setIsbn] = useState(() => params.get('isbn') ?? '')
   const [detail, setDetail] = useState<AladinBookDetail>()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string>()

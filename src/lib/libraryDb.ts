@@ -88,6 +88,8 @@ function selectedShelfNames(
 
 function holdingQueryKey(filters: HoldingSearchFilters) {
   return JSON.stringify({
+    keyword: normalizeText(filters.keyword ?? ''),
+    kdcMajor: filters.kdcMajor ?? '',
     title: normalizeText(filters.title),
     author: normalizeText(filters.author),
     publisher: normalizeText(filters.publisher),
@@ -202,10 +204,12 @@ export async function searchHoldings(
     publisher: normalizeText(filters.publisher),
     isbn: normalizeIsbn(filters.isbn),
   }
+  const keyword = normalizeText(filters.keyword ?? '')
+  const kdcMajor = filters.kdcMajor ?? ''
   const shelves = selectedShelfNames(filters)
   const offset = (page - 1) * pageSize
   const hasAnyFilter = Boolean(
-    normalizedFilters.title ||
+    keyword || kdcMajor || normalizedFilters.title ||
       normalizedFilters.author ||
       normalizedFilters.publisher ||
       normalizedFilters.isbn ||
@@ -242,7 +246,9 @@ export async function searchHoldings(
         (!normalizedFilters.author || row.normalizedAuthor.includes(normalizedFilters.author)) &&
         (!normalizedFilters.publisher ||
           row.normalizedPublisher.includes(normalizedFilters.publisher)) &&
-        (!normalizedFilters.isbn || row.normalizedIsbn.includes(normalizedFilters.isbn)),
+        (!normalizedFilters.isbn || row.normalizedIsbn.includes(normalizedFilters.isbn)) &&
+        (!kdcMajor || kdcFromHolding(row).startsWith(kdcMajor)) &&
+        (!keyword || [row.normalizedTitle, row.normalizedAuthor, row.normalizedPublisher, normalizeText(row.isbn), normalizeText(row.callNumber), normalizeText(row.kdc)].some((value) => value.includes(keyword))),
     )
     rememberQueryResult(holdingQueryCache, queryKey, matchedRows)
   }

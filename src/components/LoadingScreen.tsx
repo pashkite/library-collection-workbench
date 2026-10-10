@@ -22,7 +22,7 @@ export function LoadingScreen({ progress, sampleBook, onComplete }: LoadingScree
             <BookOpen size={25} />
           </span>
           <div>
-            <p>장서업무 갤러리</p>
+            <p>장서 워크벤치</p>
             <h1>{complete ? '소장목록 준비가 완료되었습니다.' : '소장목록을 불러오고 있습니다.'}</h1>
           </div>
         </header>
@@ -66,7 +66,7 @@ export function LoadingScreen({ progress, sampleBook, onComplete }: LoadingScree
         {complete && onComplete ? (
           <button type="button" className="primary-button board-loading-button" onClick={onComplete}>
             <CheckCircle2 size={17} aria-hidden="true" />
-            장서업무 갤러리 열기
+            장서 워크벤치 열기
           </button>
         ) : null}
       </section>

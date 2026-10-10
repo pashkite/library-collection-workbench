@@ -153,6 +153,8 @@ export interface BootstrapProgress {
 }
 
 export interface HoldingSearchFilters {
+  keyword?: string
+  kdcMajor?: string
   title: string
   author: string
   publisher: string

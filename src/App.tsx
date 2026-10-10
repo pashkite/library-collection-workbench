@@ -9,6 +9,7 @@ import { getStoredDataInfo } from './lib/libraryDb'
 import type { AppDataState, BootstrapProgress, DataMeta, StoredBookHolding } from './types/library'
 import './index.css'
 import './gallery.css'
+import './modern-workbench.css'
 
 const HomePage = lazy(() => import('./pages/HomePage').then((module) => ({ default: module.HomePage })))
 const HoldingsSearchPage = lazy(() =>
