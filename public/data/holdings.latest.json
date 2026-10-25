@@ -1883614,5 +1883614,21 @@
     "shelfName": "BR11",
     "registeredAt": "2026-10-23",
     "registrationNumber": ""
+  },
+  {
+    "id": "holding:127081:9780823461745:i28h:2026-10-22:(a)pairofparrots:123",
+    "dedupeKey": "holding:127081:9780823461745:i28h:2026-10-22:(a)pairofparrots",
+    "libCode": "127081",
+    "libraryName": "달성군립도서관",
+    "title": "(A) pair of parrots",
+    "author": "by David A. Adler;illustrated by Clarice Elliott",
+    "publisher": "Holiday House",
+    "publicationYear": "2025",
+    "isbn": "9780823461745",
+    "kdc": "747",
+    "callNumber": "I28h",
+    "shelfName": "[달성군립]어린이자료실",
+    "registeredAt": "2026-10-22",
+    "registrationNumber": ""
   }
 ]
